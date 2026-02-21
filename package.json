@@ -1,0 +1,23 @@
+{
+  "name": "dicandilo-erp",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Metal Service Center ERP - Production Grade Cloud System",
+  "workspaces": [
+    "api",
+    "web",
+    "shared"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev --workspace=api\" \"npm run dev --workspace=web\"",
+    "build": "npm run build --workspace=shared && npm run build --workspace=api && npm run build --workspace=web",
+    "test": "npm run test --workspace=api",
+    "lint": "npm run lint --workspace=api && npm run lint --workspace=web",
+    "db:migrate": "npm run db:migrate --workspace=api",
+    "db:studio": "npm run db:studio --workspace=api",
+    "db:seed": "npm run db:seed --workspace=api"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
