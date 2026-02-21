@@ -23,6 +23,8 @@ import { ARAgeingPage } from './pages/accounting/ARAgeingPage';
 import { ChartOfAccountsPage } from './pages/accounting/ChartOfAccountsPage';
 import { ReportingPage } from './pages/ReportingPage';
 import { UsersPage } from './pages/admin/UsersPage';
+import { AutomationPage } from './pages/admin/AutomationPage';
+import { BarcodePrintPage } from './pages/inventory/BarcodePrintPage';
 import { TasksPage } from './pages/TasksPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 
@@ -53,6 +55,7 @@ export default function App() {
             <Route index element={<InventoryPage />} />
             <Route path="products" element={<ProductsPage />} />
             <Route path="products/:id" element={<ProductDetailPage />} />
+            <Route path="products/:id/barcodes" element={<BarcodePrintPage />} />
             <Route path="adjust" element={<StockAdjustPage />} />
             <Route path="receive" element={<ReceiveStockPage />} />
           </Route>
@@ -97,6 +100,7 @@ export default function App() {
 
           {/* Admin */}
           <Route path="admin/users" element={<UsersPage />} />
+          <Route path="admin/automation" element={<AutomationPage />} />
 
           {/* 404 */}
           <Route path="*" element={<NotFoundPage />} />

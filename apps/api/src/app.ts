@@ -25,6 +25,8 @@ import { barcodeRoutes } from './modules/barcoding/barcode.routes';
 import { shippingRoutes } from './modules/shipping/shipping.routes';
 import { nestingRoutes } from './modules/nesting/nesting.routes';
 import { websocketPlugin } from './websocket/ws.plugin';
+import { automationRoutes } from './modules/automation/automation.routes';
+import { startAutomationScheduler } from './modules/automation/automation.scheduler';
 
 const app = Fastify({
   logger: {
@@ -108,6 +110,7 @@ async function buildApp() {
   await app.register(barcodeRoutes, { prefix: `${prefix}/barcodes` });
   await app.register(shippingRoutes, { prefix: `${prefix}/shipping` });
   await app.register(nestingRoutes, { prefix: `${prefix}/nesting` });
+  await app.register(automationRoutes, { prefix: `${prefix}/automation` });
   await app.register(websocketPlugin, { prefix: `${prefix}/ws` });
 
   // Graceful shutdown
@@ -128,6 +131,7 @@ async function main() {
   try {
     const server = await buildApp();
     await prisma.$connect();
+    startAutomationScheduler(server);
     await server.listen({ port: env.PORT, host: env.HOST });
   } catch (err) {
     console.error(err);

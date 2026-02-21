@@ -5,6 +5,59 @@ import { authenticate, requirePermission } from '../../middleware/auth.middlewar
 import { writeAuditLog } from '../../middleware/audit.middleware';
 import { handleError, NotFoundError, ConflictError, ValidationError } from '../../utils/errors';
 import { parsePagination, paginatedResponse } from '../../utils/pagination';
+import { sendEmail, orderStatusTemplate } from '../../utils/email';
+
+async function sendOrderStatusEmail(orderId: string, companyId: string): Promise<void> {
+  try {
+    const order = await prisma.salesOrder.findFirst({
+      where: { id: orderId, companyId },
+      include: { customer: true, lines: true },
+    });
+    if (!order || !order.customer) return;
+
+    const contacts = (order.customer.contacts as Array<{ email?: string; isPrimary?: boolean }>) ?? [];
+    const emailAddr = contacts.find((c) => c.isPrimary)?.email ?? contacts[0]?.email;
+    if (!emailAddr) return;
+
+    // Check if automation rule is enabled for this status transition
+    const rule = await (prisma as any).emailAutomationRule.findFirst({
+      where: { companyId, trigger: `SO_${order.status}`, isEnabled: true },
+    });
+    if (!rule) return;
+
+    const html = orderStatusTemplate({
+      orderNumber: order.orderNumber,
+      status: order.status,
+      customerName: order.customer.name,
+      totalAmount: Number(order.totalAmount),
+      currencyCode: order.currencyCode,
+      lines: order.lines.map((l) => ({
+        description: l.description,
+        qtyOrdered: l.qtyOrdered.toString(),
+        unitPrice: Number(l.unitPrice),
+        lineTotal: Number(l.lineTotal),
+        uom: l.uom,
+      })),
+    });
+
+    const subject: string = rule.subject || `Order ${order.orderNumber} — ${order.status}`;
+    await sendEmail(emailAddr, subject, html);
+
+    await (prisma as any).emailLog.create({
+      data: {
+        companyId,
+        trigger: `SO_${order.status}`,
+        entityType: 'SalesOrder',
+        entityId: orderId,
+        recipient: emailAddr,
+        subject,
+        status: 'SENT',
+      },
+    });
+  } catch (err) {
+    console.error('[email] Failed to send order status email:', err);
+  }
+}
 
 export const salesRoutes: FastifyPluginAsync = async (fastify) => {
 
@@ -208,6 +261,20 @@ export const salesRoutes: FastifyPluginAsync = async (fastify) => {
     } catch (err) { return handleError(reply, err); }
   });
 
+  // ── PATCH /quotes/:id/status — update quote status ────────────────────────
+
+  fastify.patch('/quotes/:id/status', { preHandler: [authenticate, requirePermission('sales', 'edit')] }, async (request, reply) => {
+    try {
+      const { sub } = request.user as { companyId: string; sub: string };
+      const { id } = request.params as { id: string };
+      const { status } = z.object({
+        status: z.enum(['DRAFT', 'SENT', 'ACCEPTED', 'REJECTED', 'DECLINED', 'CANCELLED']),
+      }).parse(request.body);
+      const q = await prisma.salesQuote.update({ where: { id }, data: { status: status as any, updatedBy: sub } });
+      return q;
+    } catch (err) { return handleError(reply, err); }
+  });
+
   // Convert quote to sales order
   fastify.post('/quotes/:id/convert', { preHandler: [authenticate, requirePermission('sales', 'create')] }, async (request, reply) => {
     try {
@@ -390,16 +457,35 @@ export const salesRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.patch('/orders/:id/confirm', { preHandler: [authenticate, requirePermission('sales', 'edit')] }, async (request, reply) => {
     try {
+      const { companyId } = request.user as { companyId: string };
       const { id } = request.params as { id: string };
       const so = await prisma.salesOrder.update({ where: { id }, data: { status: 'CONFIRMED', updatedBy: (request.user as { sub: string }).sub } });
+      sendOrderStatusEmail(id, companyId).catch(() => {});
       return so;
     } catch (err) { return handleError(reply, err); }
   });
 
   fastify.patch('/orders/:id/cancel', { preHandler: [authenticate, requirePermission('sales', 'edit')] }, async (request, reply) => {
     try {
+      const { companyId } = request.user as { companyId: string };
       const { id } = request.params as { id: string };
       const so = await prisma.salesOrder.update({ where: { id }, data: { status: 'CANCELLED', updatedBy: (request.user as { sub: string }).sub } });
+      sendOrderStatusEmail(id, companyId).catch(() => {});
+      return so;
+    } catch (err) { return handleError(reply, err); }
+  });
+
+  // ── PATCH /orders/:id/status — generic status transition ─────────────────
+
+  fastify.patch('/orders/:id/status', { preHandler: [authenticate, requirePermission('sales', 'edit')] }, async (request, reply) => {
+    try {
+      const { companyId, sub } = request.user as { companyId: string; sub: string };
+      const { id } = request.params as { id: string };
+      const { status } = z.object({
+        status: z.enum(['DRAFT', 'CONFIRMED', 'IN_PRODUCTION', 'READY_TO_SHIP', 'SHIPPED', 'INVOICED', 'CANCELLED']),
+      }).parse(request.body);
+      const so = await prisma.salesOrder.update({ where: { id }, data: { status, updatedBy: sub } });
+      sendOrderStatusEmail(id, companyId).catch(() => {});
       return so;
     } catch (err) { return handleError(reply, err); }
   });

@@ -1,6 +1,7 @@
+import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Package, MapPin, Hash, Scale, Ruler, Tag, FileText, BarChart3 } from 'lucide-react';
+import { ArrowLeft, Package, MapPin, Hash, Scale, Ruler, Tag, FileText, BarChart3, QrCode, Printer } from 'lucide-react';
 import { inventoryApi, Product } from '../../services/api';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { DataTable, Column } from '../../components/ui/DataTable';
@@ -29,6 +30,31 @@ export function ProductDetailPage() {
     }),
     enabled: !!id,
   });
+
+  const [barcodeEnabled, setBarcodeEnabled] = useState(false);
+  const {
+    data: barcodeData,
+    isFetching: barcodeLoading,
+    refetch: fetchBarcodes,
+  } = useQuery({
+    queryKey: ['barcode-label', id],
+    queryFn: () => inventoryApi.getProductBarcodeLabel(id!).then((r) => r.data as {
+      qrCode: { dataUrl: string; data: string; standard: string };
+      code128: { dataUrl: string; data: string; standard: string };
+    }),
+    enabled: barcodeEnabled && !!id,
+  });
+
+  function handleGenerateBarcodes() {
+    setBarcodeEnabled(true);
+    fetchBarcodes();
+  }
+
+  function handleCopySku() {
+    if (product?.code) {
+      navigator.clipboard.writeText(product.code);
+    }
+  }
 
   if (isLoading) {
     return (
@@ -182,6 +208,82 @@ export function ProductDetailPage() {
                   <span className={f.value ? 'badge-green' : 'badge-gray'}>{f.value ? 'Yes' : 'No'}</span>
                 </div>
               ))}
+            </div>
+          </div>
+
+          {/* Barcodes & Labels */}
+          <div className="card">
+            <div className="card-header flex items-center gap-2">
+              <QrCode size={15} className="text-steel-500" />
+              <h3 className="font-semibold">Barcodes &amp; Labels</h3>
+            </div>
+            <div className="card-body space-y-3">
+              {/* Action buttons */}
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleGenerateBarcodes}
+                  disabled={barcodeLoading}
+                  className="btn-secondary btn-sm flex items-center gap-1.5"
+                >
+                  {barcodeLoading ? (
+                    <>
+                      <span className="w-3 h-3 border border-steel-400 border-t-transparent rounded-full animate-spin" />
+                      Generating…
+                    </>
+                  ) : (
+                    <>
+                      <QrCode size={13} />
+                      Generate
+                    </>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate(`/inventory/products/${product.id}/barcodes`)}
+                  className="btn-secondary btn-sm flex items-center gap-1.5"
+                >
+                  <Printer size={13} />
+                  Print Label
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCopySku}
+                  className="btn-secondary btn-sm flex items-center gap-1.5"
+                >
+                  Copy SKU
+                </button>
+              </div>
+
+              {/* Barcode images */}
+              {barcodeData && (
+                <div className="space-y-3 pt-1 border-t border-steel-100">
+                  {/* QR Code */}
+                  <div className="flex items-start gap-3">
+                    <img
+                      src={barcodeData.qrCode.dataUrl}
+                      alt="QR Code"
+                      className="w-20 h-20 object-contain border border-steel-100 rounded-lg bg-white p-1"
+                    />
+                    <div className="text-xs text-steel-500 mt-1">
+                      <div className="font-medium text-steel-700">QR Code</div>
+                      <div className="text-[10px] text-steel-400">{barcodeData.qrCode.standard}</div>
+                      <div className="font-mono mt-1 break-all leading-snug">{barcodeData.qrCode.data}</div>
+                    </div>
+                  </div>
+
+                  {/* Code 128 */}
+                  <div>
+                    <div className="text-xs font-medium text-steel-700 mb-1">Code 128</div>
+                    <img
+                      src={barcodeData.code128.dataUrl}
+                      alt="Code 128"
+                      className="w-full max-h-[50px] object-contain border border-steel-100 rounded-lg bg-white p-1"
+                    />
+                    <div className="text-[10px] font-mono text-steel-400 mt-1">{barcodeData.code128.data}</div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 

@@ -1452,3 +1452,37 @@ enum EDIStatus {
   PROCESSED
   FAILED
 }
+
+// ─── EMAIL AUTOMATION ─────────────────────────────────────────────────────────
+
+model EmailAutomationRule {
+  id          String   @id @default(uuid())
+  companyId   String
+  trigger     String   // SO_CONFIRMED, SO_IN_PRODUCTION, SO_READY_TO_SHIP, SO_SHIPPED, SO_INVOICED, SO_CANCELLED, QUOTE_FOLLOWUP_3D, QUOTE_FOLLOWUP_7D, QUOTE_EXPIRY_WARNING
+  isEnabled   Boolean  @default(true)
+  subject     String   @default("")
+  delayHours  Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  updatedBy   String?
+
+  @@unique([companyId, trigger])
+  @@index([companyId])
+}
+
+model EmailLog {
+  id          String   @id @default(uuid())
+  companyId   String
+  trigger     String
+  entityType  String
+  entityId    String
+  recipient   String
+  subject     String
+  status      String   @default("SENT")
+  errorMsg    String?
+  sentAt      DateTime @default(now())
+
+  @@index([companyId])
+  @@index([entityType, entityId])
+  @@index([sentAt])
+}
