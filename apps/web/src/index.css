@@ -1,0 +1,205 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=JetBrains+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ═══════════════════════════════════════════════════════════════════
+   DESIGN TOKENS  —  DiCandilo ERP V1.0
+   Metal Service Centre  ·  Industrial / Professional
+   ═══════════════════════════════════════════════════════════════════ */
+@layer base {
+  :root {
+    /* Surfaces */
+    --background:           215 20% 97%;
+    --foreground:           222 47% 11%;
+    --card:                 0 0% 100%;
+    --card-foreground:      222 47% 11%;
+    --popover:              0 0% 100%;
+    --popover-foreground:   222 47% 11%;
+
+    /* Brand — cobalt blue */
+    --primary:              221 83% 53%;
+    --primary-foreground:   0 0% 100%;
+
+    /* Secondary — slate */
+    --secondary:            215 20% 94%;
+    --secondary-foreground: 222 47% 11%;
+
+    /* Muted */
+    --muted:                215 20% 94%;
+    --muted-foreground:     215 16% 47%;
+
+    /* Accent — amber */
+    --accent:               38 92% 50%;
+    --accent-foreground:    0 0% 100%;
+
+    /* Destructive */
+    --destructive:          0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* Borders / inputs */
+    --border:               215 20% 88%;
+    --input:                215 20% 88%;
+    --ring:                 221 83% 53%;
+
+    /* Radius */
+    --radius:               0.5rem;
+
+    /* Sidebar — dark navy-slate */
+    --sidebar-background:          222 47% 9%;
+    --sidebar-foreground:          215 20% 68%;
+    --sidebar-primary:             221 83% 60%;
+    --sidebar-primary-foreground:  0 0% 100%;
+    --sidebar-accent:              222 47% 15%;
+    --sidebar-accent-foreground:   0 0% 100%;
+    --sidebar-border:              222 47% 14%;
+    --sidebar-ring:                221 83% 53%;
+  }
+}
+
+/* ── Global resets ────────────────────────────── */
+@layer base {
+  * { @apply border-border box-border; }
+
+  html {
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+
+  h1, h2, h3, h4, h5, h6 { @apply font-semibold tracking-tight; }
+
+  /* Thin scrollbars everywhere */
+  * { scrollbar-width: thin; scrollbar-color: hsl(215 20% 78%) transparent; }
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { @apply bg-steel-300 rounded-full; }
+  ::-webkit-scrollbar-thumb:hover { @apply bg-steel-400; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   COMPONENT LAYER
+   ═══════════════════════════════════════════════════════════════════ */
+@layer components {
+
+  /* ── Buttons ────────────────────────────────── */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-lg
+           transition-all duration-150 focus-visible:outline-none focus-visible:ring-2
+           focus-visible:ring-ring focus-visible:ring-offset-2
+           disabled:pointer-events-none disabled:opacity-50 select-none whitespace-nowrap;
+  }
+  .btn-primary {
+    @apply btn bg-primary-600 text-white hover:bg-primary-700 active:bg-primary-800
+           shadow-sm shadow-primary-600/20;
+  }
+  .btn-secondary {
+    @apply btn bg-white text-steel-700 border border-steel-200 hover:bg-steel-50 active:bg-steel-100 shadow-sm;
+  }
+  .btn-ghost {
+    @apply btn text-steel-600 hover:bg-steel-100 hover:text-steel-900;
+  }
+  .btn-danger {
+    @apply btn bg-red-600 text-white hover:bg-red-700 active:bg-red-800 shadow-sm;
+  }
+  .btn-amber {
+    @apply btn bg-amber-500 text-white hover:bg-amber-600 active:bg-amber-700 shadow-sm;
+  }
+  .btn-sm   { @apply px-3 py-1.5 text-xs rounded-md; }
+  .btn-lg   { @apply px-6 py-2.5 text-base; }
+  .btn-icon { @apply btn p-2 aspect-square; }
+
+  /* ── Cards ──────────────────────────────────── */
+  .card {
+    @apply bg-card rounded-xl border border-border shadow-sm;
+  }
+  .card-header {
+    @apply px-6 py-4 border-b border-border flex items-center justify-between gap-4;
+  }
+  .card-body   { @apply px-6 py-5; }
+  .card-footer { @apply px-6 py-4 border-t border-border bg-steel-50/40 rounded-b-xl; }
+
+  /* ── Form elements ──────────────────────────── */
+  .input {
+    @apply flex w-full rounded-lg border border-input bg-white px-3 py-2 text-sm
+           placeholder:text-muted-foreground ring-offset-background
+           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring
+           focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50
+           transition-shadow duration-100;
+  }
+  .label      { @apply block text-sm font-medium text-foreground mb-1.5; }
+  .select     { @apply input cursor-pointer appearance-none; }
+  .form-group { @apply flex flex-col gap-1; }
+  .error-text { @apply text-xs text-red-600 mt-0.5 flex items-center gap-1; }
+
+  /* ── Status badges ──────────────────────────── */
+  .badge {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap;
+  }
+  .badge-blue   { @apply badge bg-blue-50   text-blue-700   ring-1 ring-inset ring-blue-200/60; }
+  .badge-green  { @apply badge bg-green-50  text-green-700  ring-1 ring-inset ring-green-200/60; }
+  .badge-yellow { @apply badge bg-yellow-50 text-yellow-700 ring-1 ring-inset ring-yellow-200/60; }
+  .badge-red    { @apply badge bg-red-50    text-red-700    ring-1 ring-inset ring-red-200/60; }
+  .badge-gray   { @apply badge bg-steel-100 text-steel-600  ring-1 ring-inset ring-steel-200/60; }
+  .badge-orange { @apply badge bg-orange-50 text-orange-700 ring-1 ring-inset ring-orange-200/60; }
+  .badge-amber  { @apply badge bg-amber-50  text-amber-700  ring-1 ring-inset ring-amber-200/60; }
+  .badge-violet { @apply badge bg-violet-50 text-violet-700 ring-1 ring-inset ring-violet-200/60; }
+  .badge-teal   { @apply badge bg-teal-50   text-teal-700   ring-1 ring-inset ring-teal-200/60; }
+
+  /* ── Data tables ────────────────────────────── */
+  .table-container { @apply overflow-x-auto rounded-xl border border-border; }
+  .table           { @apply min-w-full divide-y divide-border text-sm; }
+  .table thead     { @apply bg-steel-50/80; }
+  .table th {
+    @apply px-4 py-3 text-left text-[11px] font-semibold text-steel-500
+           uppercase tracking-wider whitespace-nowrap;
+  }
+  .table td        { @apply px-4 py-3 text-steel-800 whitespace-nowrap; }
+  .table tbody tr  { @apply hover:bg-steel-50/60 transition-colors duration-100; }
+  .table tbody tr:not(:last-child) { @apply border-b border-border; }
+
+  /* ── KPI stat cards ─────────────────────────── */
+  .stat-card {
+    @apply card p-5 flex flex-col gap-0.5 transition-all duration-200;
+  }
+  .stat-card-clickable {
+    @apply stat-card cursor-pointer hover:shadow-md hover:-translate-y-px;
+  }
+
+  /* ── Sidebar nav ────────────────────────────── */
+  .sidebar-item {
+    @apply flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg
+           transition-all duration-150 cursor-pointer;
+  }
+  .sidebar-item-active {
+    @apply sidebar-item bg-white/10 text-white;
+  }
+  .sidebar-item-inactive {
+    @apply sidebar-item text-[hsl(var(--sidebar-foreground))]
+           hover:bg-white/8 hover:text-white;
+  }
+
+  /* ── Page layout ────────────────────────────── */
+  .page-header   { @apply flex items-start justify-between gap-4 mb-6; }
+  .page-title    { @apply text-xl font-bold text-foreground leading-tight; }
+  .page-subtitle { @apply text-sm text-muted-foreground mt-0.5; }
+
+  /* ── Skeleton ───────────────────────────────── */
+  .skeleton {
+    @apply rounded-md bg-steel-200 animate-pulse;
+  }
+
+  /* ── Empty state ────────────────────────────── */
+  .empty-state      { @apply flex flex-col items-center justify-center py-16 text-center; }
+  .empty-state-icon {
+    @apply w-12 h-12 rounded-2xl bg-steel-100 flex items-center justify-center text-steel-400 mb-4;
+  }
+
+  /* ── Section divider ────────────────────────── */
+  .divider { @apply border-t border-border my-4; }
+}

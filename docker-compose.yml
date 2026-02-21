@@ -40,7 +40,7 @@ services:
   # ── API (Fastify + Node.js) ───────────────────────────────────────────────────
   api:
     build:
-      context: ./api
+      context: ./apps/api
       dockerfile: Dockerfile
     container_name: erp_api
     restart: unless-stopped
@@ -57,8 +57,8 @@ services:
       FRONTEND_URL: http://localhost:3000
       LOG_LEVEL: info
     volumes:
-      - ./api/src:/app/src:ro
-      - ./api/prisma:/app/prisma:ro
+      - ./apps/api/src:/app/src:ro
+      - ./apps/api/prisma:/app/prisma:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -69,7 +69,7 @@ services:
   # ── Web (React + Vite) ────────────────────────────────────────────────────────
   web:
     build:
-      context: ./web
+      context: ./apps/web
       dockerfile: Dockerfile
     container_name: erp_web
     restart: unless-stopped
@@ -78,7 +78,7 @@ services:
     environment:
       VITE_API_URL: http://localhost:3001/api/v1
     volumes:
-      - ./web/src:/app/src:ro
+      - ./apps/web/src:/app/src:ro
     depends_on:
       - api
 
