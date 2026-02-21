@@ -413,6 +413,79 @@ export const salesRoutes: FastifyPluginAsync = async (fastify) => {
     } catch (err) { return handleError(reply, err); }
   });
 
+  // ── CSV Import: Customers ────────────────────────────────────────────────────
+
+  fastify.post('/customers/import', { preHandler: [authenticate, requirePermission('sales', 'create')] }, async (request, reply) => {
+    try {
+      const { companyId, sub } = request.user as { companyId: string; sub: string };
+      const data = await request.file();
+      if (!data) return reply.status(400).send({ error: 'No file uploaded' });
+
+      const buffer = await data.toBuffer();
+      const text = buffer.toString('utf-8');
+      const lines = text.trim().split(/\r?\n/).filter(Boolean);
+      if (lines.length < 2) return reply.send({ created: 0, updated: 0, skipped: 0, errors: [] });
+
+      function parseLine(line: string): string[] {
+        const row: string[] = [];
+        let inQ = false; let cur = '';
+        for (const ch of line) {
+          if (ch === '"') { inQ = !inQ; }
+          else if (ch === ',' && !inQ) { row.push(cur.trim()); cur = ''; }
+          else { cur += ch; }
+        }
+        row.push(cur.trim());
+        return row;
+      }
+
+      const headers = parseLine(lines[0]).map((h) => h.toLowerCase().trim());
+      const idx = (k: string) => headers.indexOf(k);
+
+      let created = 0; let updated = 0; let skipped = 0;
+      const errors: Array<{ row: number; message: string }> = [];
+
+      for (let i = 1; i < lines.length; i++) {
+        const cols = parseLine(lines[i]);
+        const rowNum = i + 1;
+        try {
+          const code = cols[idx('code')]?.trim();
+          const name = cols[idx('name')]?.trim();
+          if (!code) { errors.push({ row: rowNum, message: 'Missing required field: code' }); skipped++; continue; }
+          if (!name) { errors.push({ row: rowNum, message: 'Missing required field: name' }); skipped++; continue; }
+
+          const legalName = cols[idx('legalname')]?.trim() || undefined;
+          const taxId = cols[idx('taxid')]?.trim() || undefined;
+          const currencyCode = cols[idx('currencycode')]?.trim() || 'AUD';
+          const creditLimitRaw = cols[idx('creditlimit')]?.trim();
+          const creditLimit = creditLimitRaw ? Math.round(parseFloat(creditLimitRaw) * 100) : 0;
+          const creditTermsRaw = cols[idx('creditterms')]?.trim();
+          const creditTerms = creditTermsRaw ? parseInt(creditTermsRaw) : 30;
+          const notes = cols[idx('notes')]?.trim() || undefined;
+
+          const existing = await prisma.customer.findFirst({ where: { companyId, code, deletedAt: null } });
+
+          if (existing) {
+            await prisma.customer.update({
+              where: { id: existing.id },
+              data: { name, legalName, taxId, currencyCode, creditLimit, creditTerms, notes, updatedBy: sub },
+            });
+            updated++;
+          } else {
+            await prisma.customer.create({
+              data: { companyId, code, name, legalName, taxId, currencyCode, creditLimit, creditTerms, notes, createdBy: sub, updatedBy: sub },
+            });
+            created++;
+          }
+        } catch (err: any) {
+          errors.push({ row: rowNum, message: err?.message ?? 'Unknown error' });
+          skipped++;
+        }
+      }
+
+      return reply.send({ created, updated, skipped, errors });
+    } catch (err) { return handleError(reply, err); }
+  });
+
   fastify.post('/pricing-rules', { preHandler: [authenticate, requirePermission('sales', 'create')] }, async (request, reply) => {
     try {
       const { companyId, sub } = request.user as { companyId: string; sub: string };

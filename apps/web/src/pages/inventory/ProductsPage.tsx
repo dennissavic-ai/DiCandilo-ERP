@@ -1,8 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { inventoryApi } from '../../services/api';
-import { Plus, Search, SlidersHorizontal, Package, Tag, Layers } from 'lucide-react';
+import { Plus, Search, SlidersHorizontal, Package, Tag, Layers, Upload } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { ImportModal } from '../../components/ui/ImportModal';
 
 const SHAPE_BADGE: Record<string, string> = {
   plate:      'badge-blue',
@@ -26,9 +27,27 @@ function fmtCost(cents: number) {
   return `$${(cents / 100).toLocaleString('en-AU', { minimumFractionDigits: 2 })}`;
 }
 
+const PRODUCT_COLUMNS = [
+  { key: 'code',         label: 'SKU Code',       required: true,  example: 'MS-PLATE-6-2400' },
+  { key: 'description',  label: 'Description',    required: true,  example: '6mm Mild Steel Plate 2400x1200' },
+  { key: 'uom',          label: 'Unit of Measure', required: true,  example: 'M2' },
+  { key: 'materialType', label: 'Material Type',  required: false, example: 'steel' },
+  { key: 'grade',        label: 'Grade',          required: false, example: '350' },
+  { key: 'shape',        label: 'Shape',          required: false, example: 'plate' },
+  { key: 'standardCost', label: 'Std Cost ($)',   required: false, example: '85.00' },
+  { key: 'listPrice',    label: 'List Price ($)', required: false, example: '120.00' },
+  { key: 'isBought',     label: 'Is Bought',      required: false, example: 'true' },
+  { key: 'isSold',       label: 'Is Sold',        required: false, example: 'true' },
+  { key: 'isStocked',    label: 'Is Stocked',     required: false, example: 'true' },
+  { key: 'reorderPoint', label: 'Reorder Point',  required: false, example: '5' },
+  { key: 'trackByHeat',  label: 'Track by Heat',  required: false, example: 'false' },
+  { key: 'requiresMtr',  label: 'Requires MTR',   required: false, example: 'false' },
+];
+
 export function ProductsPage() {
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
+  const [importOpen, setImportOpen] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ['products'],
@@ -51,6 +70,9 @@ export function ProductsPage() {
           <p className="page-subtitle">Master product catalogue — {data?.meta?.total ?? '—'} items</p>
         </div>
         <div className="flex gap-2">
+          <button className="btn-secondary btn-sm" onClick={() => setImportOpen(true)}>
+            <Upload size={13} /> Import CSV
+          </button>
           <button className="btn-secondary btn-sm">
             <SlidersHorizontal size={13} /> Filters
           </button>
@@ -148,6 +170,16 @@ export function ProductsPage() {
           </div>
         )}
       </div>
+
+      <ImportModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        title="Import Products (SKUs)"
+        description="Upload a CSV to bulk-create or update products. Existing SKU codes will be updated; new codes will be created."
+        endpoint="/inventory/products/import"
+        columns={PRODUCT_COLUMNS}
+        queryKey="products"
+      />
     </div>
   );
 }

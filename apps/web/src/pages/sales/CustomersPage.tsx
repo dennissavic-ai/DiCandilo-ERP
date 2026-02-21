@@ -1,7 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { salesApi } from '../../services/api';
-import { Plus, Search, Users } from 'lucide-react';
+import { Plus, Search, Users, Upload } from 'lucide-react';
 import { useState } from 'react';
+import { ImportModal } from '../../components/ui/ImportModal';
 
 function fmtCurrency(cents: number) {
   const d = cents / 100;
@@ -10,8 +11,20 @@ function fmtCurrency(cents: number) {
   return `$${d.toFixed(0)}`;
 }
 
+const CUSTOMER_COLUMNS = [
+  { key: 'code',         label: 'Code',          required: true,  example: 'ACME001' },
+  { key: 'name',         label: 'Name',          required: true,  example: 'ACME Corp' },
+  { key: 'legalName',    label: 'Legal Name',    required: false, example: 'ACME Corporation Pty Ltd' },
+  { key: 'taxId',        label: 'Tax ID / ABN',  required: false, example: '12345678901' },
+  { key: 'currencyCode', label: 'Currency',      required: false, example: 'AUD' },
+  { key: 'creditLimit',  label: 'Credit Limit $',required: false, example: '50000' },
+  { key: 'creditTerms',  label: 'Terms (days)',  required: false, example: '30' },
+  { key: 'notes',        label: 'Notes',         required: false, example: '' },
+];
+
 export function CustomersPage() {
   const [search, setSearch] = useState('');
+  const [importOpen, setImportOpen] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ['customers'],
@@ -31,7 +44,12 @@ export function CustomersPage() {
           <h1 className="page-title">Customers</h1>
           <p className="page-subtitle">{data?.meta?.total ?? '—'} accounts</p>
         </div>
-        <button className="btn-primary btn-sm"><Plus size={13} /> New Customer</button>
+        <div className="flex gap-2">
+          <button className="btn-secondary btn-sm" onClick={() => setImportOpen(true)}>
+            <Upload size={13} /> Import CSV
+          </button>
+          <button className="btn-primary btn-sm"><Plus size={13} /> New Customer</button>
+        </div>
       </div>
 
       <div className="card mb-4">
@@ -96,6 +114,16 @@ export function CustomersPage() {
           </div>
         )}
       </div>
+
+      <ImportModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        title="Import Customers"
+        description="Upload a CSV file to bulk-import or update customer accounts."
+        endpoint="/sales/customers/import"
+        columns={CUSTOMER_COLUMNS}
+        queryKey="customers"
+      />
     </div>
   );
 }

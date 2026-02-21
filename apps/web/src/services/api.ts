@@ -88,6 +88,8 @@ export const inventoryApi = {
   // Products
   listProducts: (params?: object) => api.get<PaginatedResponse<Product>>('/inventory/products', { params }),
   getProducts:  (params?: object) => api.get<PaginatedResponse<Product>>('/inventory/products', { params }),
+  importProducts: (file: File) => { const f = new FormData(); f.append('file', file); return api.post('/inventory/products/import', f, { headers: { 'Content-Type': 'multipart/form-data' } }); },
+  importInventoryLevels: (file: File) => { const f = new FormData(); f.append('file', file); return api.post('/inventory/items/import', f, { headers: { 'Content-Type': 'multipart/form-data' } }); },
   getProduct: (id: string) => api.get<Product>(`/inventory/products/${id}`),
   createProduct: (data: object) => api.post<Product>('/inventory/products', data),
   updateProduct: (id: string, data: object) => api.put<Product>(`/inventory/products/${id}`, data),
@@ -126,6 +128,7 @@ export const inventoryApi = {
 // Sales
 export const salesApi = {
   listCustomers: (params?: object) => api.get<PaginatedResponse<Customer>>('/sales/customers', { params }),
+  importCustomers: (file: File) => { const f = new FormData(); f.append('file', file); return api.post('/sales/customers/import', f, { headers: { 'Content-Type': 'multipart/form-data' } }); },
   getCustomer: (id: string) => api.get<Customer>(`/sales/customers/${id}`),
   createCustomer: (data: object) => api.post('/sales/customers', data),
   updateCustomer: (id: string, data: object) => api.put(`/sales/customers/${id}`, data),

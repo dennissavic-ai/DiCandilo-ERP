@@ -1,8 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { inventoryApi } from '../../services/api';
-import { Package, AlertTriangle, TrendingDown, Plus, Search } from 'lucide-react';
+import { Package, AlertTriangle, TrendingDown, Plus, Search, Upload } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { ImportModal } from '../../components/ui/ImportModal';
 
 function fmtCurrency(cents: number) {
   const d = cents / 100;
@@ -11,9 +12,23 @@ function fmtCurrency(cents: number) {
   return `$${d.toFixed(0)}`;
 }
 
+const INVENTORY_COLUMNS = [
+  { key: 'productCode',      label: 'Product Code',   required: true,  example: 'MS-PLATE-6-2400' },
+  { key: 'locationCode',     label: 'Location Code',  required: true,  example: 'YARD-A' },
+  { key: 'qtyOnHand',        label: 'Qty on Hand',    required: true,  example: '15' },
+  { key: 'unitCostDollars',  label: 'Unit Cost ($)',  required: true,  example: '85.00' },
+  { key: 'heatNumber',       label: 'Heat Number',    required: false, example: 'H-2024-001' },
+  { key: 'certNumber',       label: 'Cert Number',    required: false, example: 'C-2024-001' },
+  { key: 'lotNumber',        label: 'Lot Number',     required: false, example: 'LOT-001' },
+  { key: 'thickness',        label: 'Thickness (mm)', required: false, example: '6' },
+  { key: 'width',            label: 'Width (mm)',     required: false, example: '1200' },
+  { key: 'length',           label: 'Length (mm)',    required: false, example: '2400' },
+];
+
 export function InventoryPage() {
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
+  const [importOpen, setImportOpen] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ['inventory-items'],
@@ -38,6 +53,9 @@ export function InventoryPage() {
           <p className="page-subtitle">Live inventory positions across all locations</p>
         </div>
         <div className="flex gap-2">
+          <button className="btn-secondary btn-sm" onClick={() => setImportOpen(true)}>
+            <Upload size={13} /> Import CSV
+          </button>
           <button className="btn-secondary btn-sm" onClick={() => navigate('/inventory/adjust')}>
             Adjust Stock
           </button>
@@ -154,6 +172,16 @@ export function InventoryPage() {
           </div>
         )}
       </div>
+
+      <ImportModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        title="Import Inventory Levels"
+        description="Upload a CSV to set opening stock levels. Matches product by code and location by code."
+        endpoint="/inventory/items/import"
+        columns={INVENTORY_COLUMNS}
+        queryKey="inventory-items"
+      />
     </div>
   );
 }

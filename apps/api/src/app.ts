@@ -2,6 +2,7 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import jwt from '@fastify/jwt';
+import multipart from '@fastify/multipart';
 import rateLimit from '@fastify/rate-limit';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
@@ -55,6 +56,9 @@ async function buildApp() {
     secret: env.JWT_SECRET,
     sign: { expiresIn: env.JWT_ACCESS_EXPIRES },
   });
+
+  // Multipart (CSV / file uploads — max 10 MB)
+  await app.register(multipart, { limits: { fileSize: 10 * 1024 * 1024 } });
 
   // WebSocket
   await app.register(websocket);
