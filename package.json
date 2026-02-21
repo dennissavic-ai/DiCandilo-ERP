@@ -1,0 +1,25 @@
+{
+  "name": "dicandilo-erp",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Metal Service Center ERP — Production Grade Cloud System",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "lint": "turbo run lint",
+    "db:migrate": "npm run db:migrate --workspace=@dicandilo/api",
+    "db:migrate:prod": "npm run db:migrate:prod --workspace=@dicandilo/api",
+    "db:studio": "npm run db:studio --workspace=@dicandilo/api",
+    "db:seed": "npm run db:seed --workspace=@dicandilo/api",
+    "db:generate": "npm run db:generate --workspace=@dicandilo/api"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "turbo": "^2.0.0"
+  }
+}
