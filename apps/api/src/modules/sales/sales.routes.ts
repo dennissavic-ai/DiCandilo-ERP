@@ -6,6 +6,9 @@ import { writeAuditLog } from '../../middleware/audit.middleware';
 import { handleError, NotFoundError, ConflictError, ValidationError } from '../../utils/errors';
 import { parsePagination, paginatedResponse } from '../../utils/pagination';
 import { sendEmail, orderStatusTemplate } from '../../utils/email';
+import { InventoryService } from '../inventory/inventory.service';
+
+const inventoryService = new InventoryService();
 
 async function sendOrderStatusEmail(orderId: string, companyId: string): Promise<void> {
   try {
@@ -404,6 +407,32 @@ export const salesRoutes: FastifyPluginAsync = async (fastify) => {
       if (!customer) throw new NotFoundError('Customer', body.customerId);
       if (customer.creditHold) throw new ValidationError('Customer is on credit hold');
 
+      // Credit limit exposure check: open AR + open SOs must not exceed creditLimit
+      if (Number(customer.creditLimit) > 0) {
+        const [openARResult, openSOResult] = await Promise.all([
+          prisma.invoice.aggregate({
+            where: { customerId: body.customerId, companyId, status: { notIn: ['PAID', 'CANCELLED', 'WRITTEN_OFF'] }, deletedAt: null },
+            _sum: { balanceDue: true },
+          }),
+          prisma.salesOrder.aggregate({
+            where: { customerId: body.customerId, companyId, status: { notIn: ['CANCELLED', 'INVOICED', 'CLOSED'] }, deletedAt: null },
+            _sum: { totalAmount: true },
+          }),
+        ]);
+        const openAR = Number(openARResult._sum.balanceDue ?? 0);
+        const openSOs = Number(openSOResult._sum.totalAmount ?? 0);
+        const orderTotal = body.lines.reduce((sum, l) => {
+          const ls = Math.round(l.qty * l.unitPrice);
+          return sum + ls - Math.round(ls * l.discountPct / 100);
+        }, 0) - body.discountAmount + body.taxAmount + body.freightAmount;
+        if (openAR + openSOs + orderTotal > Number(customer.creditLimit)) {
+          throw new ValidationError(
+            `Order would exceed customer credit limit. Limit: ${Number(customer.creditLimit) / 100}, ` +
+            `Current exposure: ${(openAR + openSOs) / 100}, Order total: ${orderTotal / 100}`
+          );
+        }
+      }
+
       const count = await prisma.salesOrder.count({ where: { companyId } });
       const orderNumber = `SO-${String(count + 1).padStart(6, '0')}`;
 
@@ -457,11 +486,37 @@ export const salesRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.patch('/orders/:id/confirm', { preHandler: [authenticate, requirePermission('sales', 'edit')] }, async (request, reply) => {
     try {
-      const { companyId } = request.user as { companyId: string };
+      const { companyId, sub } = request.user as { companyId: string; sub: string };
       const { id } = request.params as { id: string };
-      const so = await prisma.salesOrder.update({ where: { id }, data: { status: 'CONFIRMED', updatedBy: (request.user as { sub: string }).sub } });
+
+      const so = await prisma.salesOrder.findFirst({
+        where: { id, companyId, deletedAt: null },
+        include: { lines: true },
+      });
+      if (!so) throw new NotFoundError('SalesOrder', id);
+      if (so.status !== 'DRAFT') throw new ValidationError(`Order is already ${so.status}`);
+
+      await prisma.salesOrder.update({ where: { id }, data: { status: 'CONFIRMED', updatedBy: sub } });
+
+      // Automatically allocate stock for lines that reference a specific inventory item.
+      // Lines without an inventoryItemId require manual warehouse allocation.
+      const allocationResults: Array<{ lineId: string; allocated: boolean; reason?: string }> = [];
+      for (const line of so.lines) {
+        if ((line as any).inventoryItemId) {
+          try {
+            await inventoryService.allocateStock((line as any).inventoryItemId, Number(line.qtyOrdered), line.id, sub);
+            await prisma.salesOrderLine.update({ where: { id: line.id }, data: { qtyAllocated: Number(line.qtyOrdered) } });
+            allocationResults.push({ lineId: line.id, allocated: true });
+          } catch (allocErr: any) {
+            allocationResults.push({ lineId: line.id, allocated: false, reason: allocErr?.message });
+          }
+        } else {
+          allocationResults.push({ lineId: line.id, allocated: false, reason: 'No inventory item linked — manual allocation required' });
+        }
+      }
+
       sendOrderStatusEmail(id, companyId).catch(() => {});
-      return so;
+      return { ...so, status: 'CONFIRMED', allocationResults };
     } catch (err) { return handleError(reply, err); }
   });
 
