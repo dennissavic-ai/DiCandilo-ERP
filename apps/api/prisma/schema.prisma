@@ -98,23 +98,32 @@ model RolePermission {
 }
 
 model User {
-  id           String    @id @default(uuid())
-  companyId    String
-  branchId     String?
-  roleId       String
-  email        String    @unique
-  passwordHash String
-  firstName    String
-  lastName     String
-  phone        String?
-  avatarUrl    String?
-  isActive     Boolean   @default(true)
-  lastLoginAt  DateTime?
-  deletedAt    DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  createdBy    String?
-  updatedBy    String?
+  id                    String    @id @default(uuid())
+  companyId             String
+  branchId              String?
+  roleId                String
+  email                 String    @unique
+  passwordHash          String
+  firstName             String
+  lastName              String
+  phone                 String?
+  avatarUrl             String?
+  isActive              Boolean   @default(true)
+  lastLoginAt           DateTime?
+  // SOC2 CC6 / ISO 27001 A.9 — Brute-force protection
+  loginAttempts         Int       @default(0)
+  lockedUntil           DateTime?
+  // SOC2 CC6 — Password lifecycle
+  passwordChangedAt     DateTime  @default(now())
+  requirePasswordChange Boolean   @default(false)
+  // SOC2 CC6 / NIST CSF PR.AC — TOTP Multi-Factor Authentication
+  mfaEnabled            Boolean   @default(false)
+  mfaSecret             String?   // base32-encoded TOTP secret
+  deletedAt             DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  createdBy             String?
+  updatedBy             String?
 
   company                Company               @relation(fields: [companyId], references: [id])
   branch                 Branch?               @relation(fields: [branchId], references: [id])
@@ -1485,4 +1494,59 @@ model EmailLog {
   @@index([companyId])
   @@index([entityType, entityId])
   @@index([sentAt])
+}
+
+// ─── SECURITY EVENTS (SOC2 CC7 / ISO 27001 A.12 / NIST CSF DE.CM) ────────────
+
+/// Immutable security-relevant event log. Never deleted; retained per policy.
+model SecurityEvent {
+  id          String   @id @default(uuid())
+  companyId   String?
+  userId      String?
+  eventType   SecurityEventType
+  severity    SecuritySeverity  @default(INFO)
+  ipAddress   String?
+  userAgent   String?
+  metadata    Json?    // extra context (e.g. attempted username, resource)
+  createdAt   DateTime @default(now())
+
+  @@index([companyId])
+  @@index([userId])
+  @@index([eventType])
+  @@index([severity])
+  @@index([createdAt])
+}
+
+enum SecurityEventType {
+  // Authentication
+  LOGIN_SUCCESS
+  LOGIN_FAILURE
+  LOGIN_LOCKED
+  LOGOUT
+  TOKEN_REFRESH
+  PASSWORD_CHANGE
+  PASSWORD_RESET_REQUEST
+  // MFA
+  MFA_ENABLED
+  MFA_DISABLED
+  MFA_CHALLENGE_SUCCESS
+  MFA_CHALLENGE_FAILURE
+  // Authorization
+  PERMISSION_DENIED
+  ADMIN_ACCESS
+  // Account lifecycle
+  ACCOUNT_CREATED
+  ACCOUNT_DEACTIVATED
+  ACCOUNT_UNLOCKED
+  // Data / compliance
+  DATA_EXPORT
+  DATA_DELETION_REQUEST
+  // System
+  SUSPICIOUS_ACTIVITY
+}
+
+enum SecuritySeverity {
+  INFO
+  WARNING
+  CRITICAL
 }
