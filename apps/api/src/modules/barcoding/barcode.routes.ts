@@ -101,6 +101,11 @@ export const barcodeRoutes: FastifyPluginAsync = async (fastify) => {
         entity = await prisma.workOrder.findFirst({ where: { id: barcode.entityId }, include: { lines: true } });
       } else if (barcode.entityType === 'PRODUCT') {
         entity = await prisma.product.findFirst({ where: { id: barcode.entityId } });
+      } else if (barcode.entityType === 'SHIPMENT') {
+        entity = await prisma.shipmentManifest.findFirst({
+          where: { id: barcode.entityId },
+          include: { pickLists: { select: { id: true, status: true } } },
+        });
       }
 
       return { barcode, entityType: barcode.entityType, entityId: barcode.entityId, entity };

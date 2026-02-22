@@ -25,6 +25,7 @@ import { ReportingPage } from './pages/ReportingPage';
 import { UsersPage } from './pages/admin/UsersPage';
 import { AutomationPage } from './pages/admin/AutomationPage';
 import { BarcodePrintPage } from './pages/inventory/BarcodePrintPage';
+import { ScanPage } from './pages/ScanPage';
 import { TasksPage } from './pages/TasksPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 
@@ -45,6 +46,9 @@ export default function App() {
         {/* Public */}
         <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
         <Route path="/register" element={<PublicRoute><RegisterPage /></PublicRoute>} />
+
+        {/* Full-screen scanner — private but no sidebar layout */}
+        <Route path="/scan" element={<PrivateRoute><ScanPage /></PrivateRoute>} />
 
         {/* Private (wrapped in sidebar layout) */}
         <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>

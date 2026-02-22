@@ -74,9 +74,9 @@ const NAV_ANALYTICS: NavItem[] = [
 ];
 
 const NAV_ADMIN: NavItem[] = [
-  { label: 'Barcoding',   to: '/barcoding',          icon: QrCode },
-  { label: 'Automation',  to: '/admin/automation',    icon: Mail },
-  { label: 'Users',       to: '/admin/users',         icon: Users },
+  { label: 'Scan Barcode', to: '/scan',              icon: QrCode },
+  { label: 'Automation',   to: '/admin/automation',  icon: Mail },
+  { label: 'Users',        to: '/admin/users',       icon: Users },
 ];
 
 function useGroupActive(children: NavChild[]) {
