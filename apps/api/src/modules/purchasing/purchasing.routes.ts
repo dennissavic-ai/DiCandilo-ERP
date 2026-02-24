@@ -5,6 +5,38 @@ import { authenticate, requirePermission } from '../../middleware/auth.middlewar
 import { writeAuditLog } from '../../middleware/audit.middleware';
 import { handleError, NotFoundError, ConflictError } from '../../utils/errors';
 import { parsePagination, paginatedResponse } from '../../utils/pagination';
+import { InventoryService } from '../inventory/inventory.service';
+
+const inventoryService = new InventoryService();
+
+/** Post AP journal: DR Inventory (1200) / CR Accounts Payable (2000) */
+async function postPOReceiptToGL(companyId: string, poId: string, amount: number, userId: string) {
+  if (amount <= 0) return;
+  const now = new Date();
+  const period = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const [invAccount, apAccount] = await Promise.all([
+    prisma.gLAccount.findFirst({ where: { companyId, code: '1200' } }),
+    prisma.gLAccount.findFirst({ where: { companyId, code: '2000' } }),
+  ]);
+  if (!invAccount || !apAccount) return; // GL accounts not yet configured — skip silently
+  const count = await prisma.journalEntry.count({ where: { companyId } });
+  await prisma.journalEntry.create({
+    data: {
+      companyId,
+      entryNumber: `JE-AUTO-${String(count + 1).padStart(6, '0')}`,
+      description: `PO receipt ${poId} — inventory received`,
+      postingDate: now,
+      period,
+      createdBy: userId,
+      lines: {
+        create: [
+          { companyId, glAccountId: invAccount.id, description: 'Inventory received', debitAmount: amount, creditAmount: 0, postingDate: now, period, sourceType: 'PO', sourceId: poId, purchaseOrderId: poId, createdBy: userId },
+          { companyId, glAccountId: apAccount.id, description: 'Accounts Payable — supplier', debitAmount: 0, creditAmount: amount, postingDate: now, period, sourceType: 'PO', sourceId: poId, purchaseOrderId: poId, createdBy: userId },
+        ],
+      },
+    },
+  });
+}
 
 export const purchasingRoutes: FastifyPluginAsync = async (fastify) => {
 
@@ -215,11 +247,11 @@ export const purchasingRoutes: FastifyPluginAsync = async (fastify) => {
     } catch (err) { return handleError(reply, err); }
   });
 
-  // PO Receipt
+  // PO Receipt — creates receipt, updates inventory, posts AP GL, updates PO line/status
   fastify.post('/orders/:id/receipts', { preHandler: [authenticate, requirePermission('purchasing', 'create')] }, async (request, reply) => {
     try {
       const { id } = request.params as { id: string };
-      const { sub } = request.user as { sub: string };
+      const { sub, companyId } = request.user as { sub: string; companyId: string };
       const body = z.object({
         lines: z.array(z.object({
           purchaseOrderLineId: z.string().uuid(),
@@ -227,9 +259,21 @@ export const purchasingRoutes: FastifyPluginAsync = async (fastify) => {
           locationId: z.string().uuid().optional(),
           heatNumber: z.string().optional(),
           certNumber: z.string().optional(),
+          thickness: z.number().int().positive().optional(),
+          width: z.number().int().positive().optional(),
+          length: z.number().int().positive().optional(),
         })),
         notes: z.string().optional(),
       }).parse(request.body);
+
+      const po = await prisma.purchaseOrder.findFirst({
+        where: { id, companyId, deletedAt: null },
+        include: { lines: true },
+      });
+      if (!po) throw new NotFoundError('PurchaseOrder', id);
+
+      // Build a map of PO lines for cost/product lookup
+      const poLineMap = new Map(po.lines.map((l) => [l.id, l]));
 
       const count = await prisma.pOReceipt.count({ where: { purchaseOrderId: id } });
       const receiptNumber = `REC-${id.slice(0, 8)}-${count + 1}`;
@@ -254,6 +298,65 @@ export const purchasingRoutes: FastifyPluginAsync = async (fastify) => {
         },
         include: { lines: true },
       });
+
+      // ── Step 1: receive stock into inventory ──────────────────────────────
+      // Use the first location specified, or fall back to no location (requires manual fix)
+      const defaultLocationId = body.lines.find((l) => l.locationId)?.locationId;
+      if (defaultLocationId) {
+        const invLines = body.lines
+          .map((l) => {
+            const poLine = poLineMap.get(l.purchaseOrderLineId);
+            if (!poLine) return null;
+            return {
+              productId: poLine.productId,
+              qtyReceived: l.qtyReceived,
+              unitCost: Number(poLine.unitPrice),
+              heatNumber: l.heatNumber,
+              certNumber: l.certNumber,
+              thickness: l.thickness,
+              width: l.width,
+              length: l.length,
+            };
+          })
+          .filter((l): l is NonNullable<typeof l> => l !== null);
+
+        if (invLines.length > 0) {
+          await inventoryService.receiveStock(
+            { purchaseOrderId: id, locationId: defaultLocationId, lines: invLines, notes: body.notes, createdBy: sub },
+            companyId
+          );
+        }
+      }
+
+      // ── Step 2: update PO line qtyReceived ───────────────────────────────
+      for (const rl of body.lines) {
+        const poLine = poLineMap.get(rl.purchaseOrderLineId);
+        if (!poLine) continue;
+        const newQtyReceived = Number(poLine.qtyReceived) + rl.qtyReceived;
+        await prisma.purchaseOrderLine.update({
+          where: { id: rl.purchaseOrderLineId },
+          data: { qtyReceived: newQtyReceived },
+        });
+      }
+
+      // ── Step 3: update PO status ─────────────────────────────────────────
+      const updatedLines = await prisma.purchaseOrderLine.findMany({ where: { purchaseOrderId: id } });
+      const allFulfilled = updatedLines.every((l) => Number(l.qtyReceived) >= Number(l.qtyOrdered));
+      const anyFulfilled = updatedLines.some((l) => Number(l.qtyReceived) > 0);
+      await prisma.purchaseOrder.update({
+        where: { id },
+        data: { status: allFulfilled ? 'RECEIVED' : anyFulfilled ? 'PARTIALLY_RECEIVED' : undefined, updatedBy: sub },
+      });
+
+      // ── Step 4: post AP GL entry (DR Inventory / CR Accounts Payable) ────
+      const receiptTotal = body.lines.reduce((sum, l) => {
+        const poLine = poLineMap.get(l.purchaseOrderLineId);
+        return sum + (poLine ? l.qtyReceived * Number(poLine.unitPrice) : 0);
+      }, 0);
+      postPOReceiptToGL(companyId, id, Math.round(receiptTotal), sub).catch((e) =>
+        console.error('[GL] PO receipt posting failed:', e)
+      );
+
       return reply.status(201).send(receipt);
     } catch (err) { return handleError(reply, err); }
   });

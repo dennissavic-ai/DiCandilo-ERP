@@ -1,4 +1,4 @@
-import { Bell, Search, LogOut, User, ChevronDown, Settings } from 'lucide-react';
+import { Bell, Search, LogOut, User, ChevronDown, Settings, ScanLine } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
@@ -51,6 +51,16 @@ export function TopBar() {
       </div>
 
       <div className="flex items-center gap-1.5 ml-auto">
+        {/* Barcode scanner — prominent on mobile */}
+        <button
+          className="btn-icon btn-ghost rounded-lg text-primary-600 hover:bg-primary-50"
+          onClick={() => navigate('/scan')}
+          title="Scan barcode"
+          aria-label="Open barcode scanner"
+        >
+          <ScanLine size={16} />
+        </button>
+
         {/* Notifications */}
         <button className="relative btn-icon btn-ghost rounded-lg">
           <Bell size={16} />

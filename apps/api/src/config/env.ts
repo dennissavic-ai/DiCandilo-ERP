@@ -36,6 +36,22 @@ const envSchema = z.object({
   // Rate limiting
   RATE_LIMIT_MAX: z.coerce.number().default(100),
   RATE_LIMIT_WINDOW: z.coerce.number().default(60000),
+  // Stricter limit for authentication endpoints (SOC2 CC6 / OWASP API2)
+  AUTH_RATE_LIMIT_MAX: z.coerce.number().default(10),
+  AUTH_RATE_LIMIT_WINDOW: z.coerce.number().default(60000),
+
+  // Account lockout (SOC2 CC6 / ISO 27001 A.9.4.2)
+  MAX_LOGIN_ATTEMPTS: z.coerce.number().default(5),
+  LOCKOUT_DURATION_MINUTES: z.coerce.number().default(15),
+
+  // MFA / TOTP (SOC2 CC6 / NIST SP 800-63B AAL2)
+  MFA_ISSUER: z.string().default('DiCandilo ERP'),
+
+  // Swagger (OWASP API9 — disable in production by default)
+  SWAGGER_ENABLED: z
+    .string()
+    .transform((v) => v === 'true')
+    .default('false'),
 
   // Logging
   LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).default('info'),

@@ -23,6 +23,9 @@ import { ARAgeingPage } from './pages/accounting/ARAgeingPage';
 import { ChartOfAccountsPage } from './pages/accounting/ChartOfAccountsPage';
 import { ReportingPage } from './pages/ReportingPage';
 import { UsersPage } from './pages/admin/UsersPage';
+import { AutomationPage } from './pages/admin/AutomationPage';
+import { BarcodePrintPage } from './pages/inventory/BarcodePrintPage';
+import { ScanPage } from './pages/ScanPage';
 import { TasksPage } from './pages/TasksPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 
@@ -44,6 +47,9 @@ export default function App() {
         <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
         <Route path="/register" element={<PublicRoute><RegisterPage /></PublicRoute>} />
 
+        {/* Full-screen scanner — private but no sidebar layout */}
+        <Route path="/scan" element={<PrivateRoute><ScanPage /></PrivateRoute>} />
+
         {/* Private (wrapped in sidebar layout) */}
         <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
           <Route index element={<DashboardPage />} />
@@ -53,6 +59,7 @@ export default function App() {
             <Route index element={<InventoryPage />} />
             <Route path="products" element={<ProductsPage />} />
             <Route path="products/:id" element={<ProductDetailPage />} />
+            <Route path="products/:id/barcodes" element={<BarcodePrintPage />} />
             <Route path="adjust" element={<StockAdjustPage />} />
             <Route path="receive" element={<ReceiveStockPage />} />
           </Route>
@@ -97,6 +104,7 @@ export default function App() {
 
           {/* Admin */}
           <Route path="admin/users" element={<UsersPage />} />
+          <Route path="admin/automation" element={<AutomationPage />} />
 
           {/* 404 */}
           <Route path="*" element={<NotFoundPage />} />

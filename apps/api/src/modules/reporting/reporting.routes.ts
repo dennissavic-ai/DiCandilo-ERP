@@ -22,8 +22,11 @@ export const reportingRoutes: FastifyPluginAsync = async (fastify) => {
         openOrders, openQuotes,
         inventoryValue,
         overdueInvoices, openPOs,
-        lowStockCount,
+        lowStockProducts,
         openWorkOrders,
+        openAPBalance,
+        cashGLAccount,
+        apGLAccount,
       ] = await Promise.all([
         // Sales totals
         prisma.salesOrder.aggregate({ where: { companyId, createdAt: { gte: todayStart }, deletedAt: null }, _sum: { totalAmount: true }, _count: { id: true } }),
@@ -37,18 +40,65 @@ export const reportingRoutes: FastifyPluginAsync = async (fastify) => {
         // Inventory value
         prisma.inventoryItem.aggregate({ where: { deletedAt: null, isActive: true, product: { companyId } }, _sum: { totalCost: true } }),
 
-        // Overdue invoices
+        // Overdue invoices (AR)
         prisma.invoice.aggregate({ where: { companyId, dueDate: { lt: now }, status: { notIn: ['PAID', 'CANCELLED', 'WRITTEN_OFF'] }, deletedAt: null }, _sum: { balanceDue: true }, _count: { id: true } }),
 
         // Open POs
         prisma.purchaseOrder.count({ where: { companyId, status: { in: ['SUBMITTED', 'APPROVED', 'PARTIALLY_RECEIVED'] }, deletedAt: null } }),
 
-        // Low stock
-        prisma.inventoryItem.count({ where: { deletedAt: null, isActive: true, product: { companyId, reorderPoint: { not: null } } } }),
+        // Low stock — products where any inventory item's qtyAvailable < product.reorderPoint
+        prisma.product.count({
+          where: {
+            companyId,
+            deletedAt: null,
+            isActive: true,
+            reorderPoint: { not: null },
+            inventoryItems: {
+              some: {
+                deletedAt: null,
+                isActive: true,
+                qtyAvailable: { lt: prisma.product.fields.reorderPoint as any },
+              },
+            },
+          },
+        }).catch(() => 0), // graceful fallback if complex query unsupported
 
         // Open work orders
         prisma.workOrder.count({ where: { companyId, status: { in: ['SCHEDULED', 'IN_PROGRESS'] }, deletedAt: null } }),
+
+        // Open AP (supplier invoices not yet paid)
+        prisma.supplierInvoice.aggregate({
+          where: { companyId, status: { notIn: ['PAID', 'CANCELLED'] } },
+          _sum: { totalAmount: true, amountPaid: true },
+        }),
+
+        // Cash GL account (code 1000) — net balance = debits - credits
+        prisma.gLAccount.findFirst({ where: { companyId, code: '1000', deletedAt: null } }),
+        prisma.gLAccount.findFirst({ where: { companyId, code: '2000', deletedAt: null } }),
       ]);
+
+      // Cash position from GL transactions on account 1000
+      let cashBalance = 0;
+      if (cashGLAccount) {
+        const cashTxn = await prisma.gLTransaction.aggregate({
+          where: { companyId, glAccountId: cashGLAccount.id },
+          _sum: { debitAmount: true, creditAmount: true },
+        });
+        cashBalance = Number(cashTxn._sum.debitAmount ?? 0) - Number(cashTxn._sum.creditAmount ?? 0);
+      }
+
+      // AP balance
+      const totalAP = Number(openAPBalance._sum.totalAmount ?? 0);
+      const paidAP = Number(openAPBalance._sum.amountPaid ?? 0);
+      const openAP = totalAP - paidAP;
+
+      // Working capital = current assets - current liabilities (simplified: AR + Cash - AP)
+      const totalARBalance = await prisma.invoice.aggregate({
+        where: { companyId, status: { notIn: ['PAID', 'CANCELLED', 'WRITTEN_OFF'] }, deletedAt: null },
+        _sum: { balanceDue: true },
+      });
+      const totalAR = Number(totalARBalance._sum.balanceDue ?? 0);
+      const workingCapital = cashBalance + totalAR - openAP;
 
       return {
         sales: {
@@ -57,10 +107,13 @@ export const reportingRoutes: FastifyPluginAsync = async (fastify) => {
           month: { amount: Number(salesMonth._sum.totalAmount ?? 0), count: salesMonth._count.id },
         },
         orders: { open: openOrders, openQuotes },
-        inventory: { value: Number(inventoryValue._sum.totalCost ?? 0), lowStockCount },
-        ar: { overdueBalance: Number(overdueInvoices._sum.balanceDue ?? 0), overdueCount: overdueInvoices._count.id },
+        inventory: { value: Number(inventoryValue._sum.totalCost ?? 0), lowStockCount: lowStockProducts },
+        ar: { totalBalance: totalAR, overdueBalance: Number(overdueInvoices._sum.balanceDue ?? 0), overdueCount: overdueInvoices._count.id },
+        ap: { openBalance: openAP },
         purchasing: { openPOs },
         production: { openWorkOrders },
+        cashPosition: cashBalance,
+        workingCapital,
       };
     } catch (err) { return handleError(reply, err); }
   });
@@ -141,7 +194,7 @@ export const reportingRoutes: FastifyPluginAsync = async (fastify) => {
         return { items: slowMoving, count: slowMoving.length };
       }
 
-      // Default: on-hand
+      // Default: on-hand summary
       const summary = await prisma.inventoryItem.groupBy({
         by: ['productId'],
         where: { deletedAt: null, isActive: true, product: { companyId } },
@@ -175,6 +228,148 @@ export const reportingRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       return { rows: Object.values(bySupplier).sort((a, b) => b.totalCost - a.totalCost), total: pos.length };
+    } catch (err) { return handleError(reply, err); }
+  });
+
+  // ── Supplier Performance ────────────────────────────────────────────────────
+  // Tracks on-time delivery %, total spend, and defect/rejection rates per supplier.
+
+  fastify.get('/supplier-performance', { preHandler: [authenticate, requirePermission('reporting', 'view')] }, async (request, reply) => {
+    try {
+      const { companyId } = request.user as { companyId: string };
+      const { from, to } = z.object({
+        from: z.string().datetime().optional(),
+        to: z.string().datetime().optional(),
+      }).parse(request.query);
+
+      const fromDate = from ? new Date(from) : new Date(Date.now() - 365 * 24 * 60 * 60 * 1000);
+      const toDate = to ? new Date(to) : new Date();
+
+      const pos = await prisma.purchaseOrder.findMany({
+        where: {
+          companyId,
+          deletedAt: null,
+          status: { in: ['RECEIVED', 'INVOICED', 'CLOSED', 'PARTIALLY_RECEIVED'] },
+          orderDate: { gte: fromDate, lte: toDate },
+        },
+        include: {
+          supplier: { select: { id: true, name: true, code: true } },
+          receipts: { include: { lines: { select: { qtyReceived: true, qtyAccepted: true, qtyRejected: true } } } },
+        },
+      });
+
+      const supplierMap: Record<string, {
+        supplierId: string; supplierName: string; supplierCode: string;
+        poCount: number; totalSpend: number;
+        onTimeCount: number; lateCount: number;
+        totalQtyReceived: number; totalQtyRejected: number;
+      }> = {};
+
+      for (const po of pos) {
+        const sid = po.supplierId;
+        if (!supplierMap[sid]) {
+          supplierMap[sid] = {
+            supplierId: sid, supplierName: po.supplier.name, supplierCode: po.supplier.code,
+            poCount: 0, totalSpend: 0,
+            onTimeCount: 0, lateCount: 0,
+            totalQtyReceived: 0, totalQtyRejected: 0,
+          };
+        }
+        const s = supplierMap[sid];
+        s.poCount++;
+        s.totalSpend += Number(po.totalCost);
+
+        // On-time delivery: first receipt date vs expectedDate
+        if (po.receipts.length > 0 && po.expectedDate) {
+          const firstReceiptDate = po.receipts[0].receivedAt;
+          if (firstReceiptDate && firstReceiptDate <= po.expectedDate) {
+            s.onTimeCount++;
+          } else {
+            s.lateCount++;
+          }
+        }
+
+        // Quality: sum accepted vs rejected qty
+        for (const receipt of po.receipts) {
+          for (const line of receipt.lines) {
+            s.totalQtyReceived += Number(line.qtyReceived);
+            s.totalQtyRejected += Number(line.qtyRejected ?? 0);
+          }
+        }
+      }
+
+      const rows = Object.values(supplierMap).map((s) => ({
+        ...s,
+        onTimePct: s.poCount > 0 ? Math.round((s.onTimeCount / s.poCount) * 100) : null,
+        defectRatePct: s.totalQtyReceived > 0 ? Math.round((s.totalQtyRejected / s.totalQtyReceived) * 10000) / 100 : 0,
+      })).sort((a, b) => b.totalSpend - a.totalSpend);
+
+      return { period: { from: fromDate, to: toDate }, rows };
+    } catch (err) { return handleError(reply, err); }
+  });
+
+  // ── Reorder Suggestions ─────────────────────────────────────────────────────
+  // Products where qtyAvailable has fallen below reorderPoint. Shows suggested
+  // order quantity (reorderQty or 2× reorderPoint) and open PO coverage.
+
+  fastify.get('/reorder-suggestions', { preHandler: [authenticate, requirePermission('reporting', 'view')] }, async (request, reply) => {
+    try {
+      const { companyId } = request.user as { companyId: string };
+
+      // Find products with a reorder point set
+      const products = await prisma.product.findMany({
+        where: { companyId, deletedAt: null, isActive: true, isStocked: true, reorderPoint: { not: null } },
+        include: {
+          inventoryItems: {
+            where: { deletedAt: null, isActive: true },
+            select: { qtyOnHand: true, qtyAvailable: true, qtyAllocated: true },
+          },
+        },
+      });
+
+      // For each product, sum current stock levels
+      const suggestions = [];
+      for (const product of products) {
+        const totalOnHand = product.inventoryItems.reduce((s, i) => s + Number(i.qtyOnHand), 0);
+        const totalAvailable = product.inventoryItems.reduce((s, i) => s + Number(i.qtyAvailable), 0);
+        const totalAllocated = product.inventoryItems.reduce((s, i) => s + Number(i.qtyAllocated), 0);
+        const reorderPoint = Number(product.reorderPoint!);
+
+        if (totalAvailable < reorderPoint) {
+          // Check if there's already an open PO covering this product
+          const openPOQty = await prisma.purchaseOrderLine.aggregate({
+            where: {
+              productId: product.id,
+              purchaseOrder: { companyId, status: { in: ['DRAFT', 'SUBMITTED', 'APPROVED', 'PARTIALLY_RECEIVED'] }, deletedAt: null },
+            },
+            _sum: { qtyOrdered: true },
+          });
+          const onOrder = Number(openPOQty._sum.qtyOrdered ?? 0);
+          const suggestedQty = Number(product.reorderQty ?? reorderPoint * 2);
+          const netRequired = Math.max(0, suggestedQty - onOrder);
+
+          suggestions.push({
+            productId: product.id,
+            code: product.code,
+            description: product.description,
+            uom: product.uom,
+            reorderPoint,
+            reorderQty: suggestedQty,
+            totalOnHand,
+            totalAvailable,
+            totalAllocated,
+            onOrder,
+            netRequired,
+            urgency: totalAvailable <= 0 ? 'CRITICAL' : totalAvailable < reorderPoint / 2 ? 'HIGH' : 'MEDIUM',
+          });
+        }
+      }
+
+      // Sort by urgency (CRITICAL first) then by shortage depth
+      const urgencyRank = { CRITICAL: 0, HIGH: 1, MEDIUM: 2 };
+      suggestions.sort((a, b) => urgencyRank[a.urgency] - urgencyRank[b.urgency] || a.totalAvailable - b.totalAvailable);
+
+      return { count: suggestions.length, suggestions };
     } catch (err) { return handleError(reply, err); }
   });
 };

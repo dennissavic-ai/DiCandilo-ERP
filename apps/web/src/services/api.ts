@@ -123,6 +123,7 @@ export const inventoryApi = {
   // Barcodes
   generateBarcode: (data: object) => api.post('/barcodes/generate', data),
   scanBarcode: (data: string) => api.post('/barcodes/scan', { data }),
+  getProductBarcodeLabel: (productId: string) => api.get(`/barcodes/products/${productId}/label`),
 };
 
 // Sales
@@ -142,6 +143,8 @@ export const salesApi = {
   createOrder: (data: object) => api.post('/sales/orders', data),
   confirmOrder: (id: string) => api.patch(`/sales/orders/${id}/confirm`),
   cancelOrder: (id: string) => api.patch(`/sales/orders/${id}/cancel`),
+  updateOrderStatus: (id: string, status: string) => api.patch(`/sales/orders/${id}/status`, { status }),
+  updateQuoteStatus: (id: string, status: string) => api.patch(`/sales/quotes/${id}/status`, { status }),
 };
 
 // Purchasing
@@ -214,6 +217,15 @@ export const tasksApi = {
   updateTask: (id: string, data: object) => api.put(`/tasks/${id}`, data),
   deleteTask: (id: string) => api.delete(`/tasks/${id}`),
   addComment: (id: string, body: string) => api.post(`/tasks/${id}/comments`, { body }),
+};
+
+// Automation
+export const automationApi = {
+  listRules: () => api.get('/automation/rules'),
+  updateRule: (trigger: string, data: { isEnabled: boolean; subject: string; delayHours: number }) =>
+    api.put(`/automation/rules/${trigger}`, data),
+  listLogs: (params?: object) => api.get('/automation/logs', { params }),
+  testEmail: (to: string, trigger: string) => api.post('/automation/test-email', { to, trigger }),
 };
 
 // ── TypeScript interfaces ──────────────────────────────────────────────────────
@@ -365,4 +377,26 @@ export interface WorkOrder {
   priority: number;
   scheduledDate?: string;
   salesOrder?: { orderNumber: string; customer?: { name: string } };
+}
+
+export interface EmailAutomationRule {
+  id: string;
+  companyId: string;
+  trigger: string;
+  isEnabled: boolean;
+  subject: string;
+  delayHours: number;
+  updatedAt: string;
+}
+
+export interface EmailLog {
+  id: string;
+  trigger: string;
+  entityType: string;
+  entityId: string;
+  recipient: string;
+  subject: string;
+  status: string;
+  errorMsg?: string;
+  sentAt: string;
 }
