@@ -111,7 +111,7 @@ function NavGroup({ item }: { item: NavItem & { children: NavChild[] } }) {
               to={child.to}
               className={({ isActive }) =>
                 clsx(
-                  'flex items-center gap-2.5 px-2.5 py-1.5 text-[12.5px] rounded-md transition-all duration-100',
+                  'flex items-center gap-2.5 px-2.5 py-1.5 text-[12.5px] transition-all duration-100',
                   isActive
                     ? 'bg-white/10 text-white font-medium'
                     : 'text-[hsl(var(--sidebar-foreground))] hover:bg-white/[0.08] hover:text-white',
@@ -157,12 +157,26 @@ export function Sidebar() {
     >
       {/* Logo */}
       <div className="flex items-center gap-3 px-4 py-[18px] border-b border-white/[0.07]">
-        <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center flex-shrink-0 shadow-lg">
+        {/* Icon — red accent square matching logo mark */}
+        <div
+          className="w-8 h-8 flex items-center justify-center flex-shrink-0"
+          style={{ background: 'hsl(var(--brand-red))' }}
+        >
           <Factory size={15} className="text-white" />
         </div>
         <div>
-          <div className="text-[13px] font-bold text-white leading-tight tracking-tight">DiCandilo</div>
-          <div className="text-[9.5px] uppercase tracking-[0.12em] text-white/35">Metal ERP</div>
+          <div
+            className="text-[14px] text-white leading-tight"
+            style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700, letterSpacing: '0.02em' }}
+          >
+            Di Candilo
+          </div>
+          <div
+            className="text-[9px] text-white/50 uppercase"
+            style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 600, letterSpacing: '0.18em' }}
+          >
+            Steel City · ERP
+          </div>
         </div>
       </div>
 

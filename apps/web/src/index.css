@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=JetBrains+Mono:wght@400;500&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -11,50 +11,53 @@
 @layer base {
   :root {
     /* Surfaces */
-    --background:           215 20% 97%;
-    --foreground:           222 47% 11%;
+    --background:           216 25% 97%;
+    --foreground:           220 55% 14%;
     --card:                 0 0% 100%;
-    --card-foreground:      222 47% 11%;
+    --card-foreground:      220 55% 14%;
     --popover:              0 0% 100%;
-    --popover-foreground:   222 47% 11%;
+    --popover-foreground:   220 55% 14%;
 
-    /* Brand — cobalt blue */
-    --primary:              221 83% 53%;
+    /* Brand — DiCandilo deep navy #1B3566 */
+    --primary:              220 60% 25%;
     --primary-foreground:   0 0% 100%;
 
-    /* Secondary — slate */
-    --secondary:            215 20% 94%;
-    --secondary-foreground: 222 47% 11%;
+    /* Secondary — light navy tint */
+    --secondary:            216 25% 93%;
+    --secondary-foreground: 220 55% 14%;
 
     /* Muted */
-    --muted:                215 20% 94%;
-    --muted-foreground:     215 16% 47%;
+    --muted:                216 25% 93%;
+    --muted-foreground:     220 15% 48%;
 
-    /* Accent — amber */
-    --accent:               38 92% 50%;
-    --accent-foreground:    0 0% 100%;
+    /* Accent — light navy tint for hover surfaces */
+    --accent:               220 45% 93%;
+    --accent-foreground:    220 60% 20%;
 
     /* Destructive */
-    --destructive:          0 84% 60%;
+    --destructive:          354 70% 44%;
     --destructive-foreground: 0 0% 100%;
 
     /* Borders / inputs */
-    --border:               215 20% 88%;
-    --input:                215 20% 88%;
-    --ring:                 221 83% 53%;
+    --border:               216 25% 87%;
+    --input:                216 25% 87%;
+    --ring:                 220 60% 25%;
 
-    /* Radius */
-    --radius:               0.5rem;
+    /* Radius — sharp/industrial (matches DiCandilo site) */
+    --radius:               0.25rem;
 
-    /* Sidebar — dark navy-slate */
-    --sidebar-background:          222 47% 9%;
-    --sidebar-foreground:          215 20% 68%;
-    --sidebar-primary:             221 83% 60%;
+    /* Brand red (logo mark accent) */
+    --brand-red:            354 70% 44%;
+
+    /* Sidebar — very dark DiCandilo navy */
+    --sidebar-background:          220 65% 11%;
+    --sidebar-foreground:          216 25% 65%;
+    --sidebar-primary:             354 70% 50%;
     --sidebar-primary-foreground:  0 0% 100%;
-    --sidebar-accent:              222 47% 15%;
+    --sidebar-accent:              220 65% 18%;
     --sidebar-accent-foreground:   0 0% 100%;
-    --sidebar-border:              222 47% 14%;
-    --sidebar-ring:                221 83% 53%;
+    --sidebar-border:              220 65% 17%;
+    --sidebar-ring:                220 60% 25%;
   }
 }
 
@@ -72,7 +75,10 @@
     font-family: 'Inter', system-ui, sans-serif;
   }
 
-  h1, h2, h3, h4, h5, h6 { @apply font-semibold tracking-tight; }
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-bold tracking-tight;
+    font-family: 'Barlow Condensed', 'Inter', system-ui, sans-serif;
+  }
 
   /* Thin scrollbars everywhere */
   * { scrollbar-width: thin; scrollbar-color: hsl(215 20% 78%) transparent; }
@@ -89,44 +95,45 @@
 
   /* ── Buttons ────────────────────────────────── */
   .btn {
-    @apply inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-lg
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold rounded
            transition-all duration-150 focus-visible:outline-none focus-visible:ring-2
            focus-visible:ring-ring focus-visible:ring-offset-2
-           disabled:pointer-events-none disabled:opacity-50 select-none whitespace-nowrap;
+           disabled:pointer-events-none disabled:opacity-50 select-none whitespace-nowrap
+           uppercase tracking-wide;
   }
   .btn-primary {
-    @apply btn bg-primary-600 text-white hover:bg-primary-700 active:bg-primary-800
-           shadow-sm shadow-primary-600/20;
+    @apply btn bg-primary-600 text-white hover:bg-primary-700 active:bg-primary-800;
   }
   .btn-secondary {
-    @apply btn bg-white text-steel-700 border border-steel-200 hover:bg-steel-50 active:bg-steel-100 shadow-sm;
+    @apply btn bg-white text-steel-700 border border-steel-300 hover:bg-steel-50 active:bg-steel-100;
   }
   .btn-ghost {
-    @apply btn text-steel-600 hover:bg-steel-100 hover:text-steel-900;
+    @apply btn text-steel-600 hover:bg-steel-100 hover:text-steel-900 normal-case tracking-normal;
   }
   .btn-danger {
-    @apply btn bg-red-600 text-white hover:bg-red-700 active:bg-red-800 shadow-sm;
+    @apply btn text-white hover:opacity-90 active:opacity-80;
+    background: hsl(var(--brand-red));
   }
   .btn-amber {
-    @apply btn bg-amber-500 text-white hover:bg-amber-600 active:bg-amber-700 shadow-sm;
+    @apply btn bg-amber-500 text-white hover:bg-amber-600 active:bg-amber-700;
   }
-  .btn-sm   { @apply px-3 py-1.5 text-xs rounded-md; }
+  .btn-sm   { @apply px-3 py-1.5 text-xs; }
   .btn-lg   { @apply px-6 py-2.5 text-base; }
-  .btn-icon { @apply btn p-2 aspect-square; }
+  .btn-icon { @apply btn p-2 aspect-square normal-case tracking-normal uppercase-none; }
 
   /* ── Cards ──────────────────────────────────── */
   .card {
-    @apply bg-card rounded-xl border border-border shadow-sm;
+    @apply bg-card rounded border border-border shadow-sm;
   }
   .card-header {
     @apply px-6 py-4 border-b border-border flex items-center justify-between gap-4;
   }
   .card-body   { @apply px-6 py-5; }
-  .card-footer { @apply px-6 py-4 border-t border-border bg-steel-50/40 rounded-b-xl; }
+  .card-footer { @apply px-6 py-4 border-t border-border bg-steel-50/40; }
 
   /* ── Form elements ──────────────────────────── */
   .input {
-    @apply flex w-full rounded-lg border border-input bg-white px-3 py-2 text-sm
+    @apply flex w-full rounded border border-input bg-white px-3 py-2 text-sm
            placeholder:text-muted-foreground ring-offset-background
            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring
            focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50
@@ -152,7 +159,7 @@
   .badge-teal   { @apply badge bg-teal-50   text-teal-700   ring-1 ring-inset ring-teal-200/60; }
 
   /* ── Data tables ────────────────────────────── */
-  .table-container { @apply overflow-x-auto rounded-xl border border-border; }
+  .table-container { @apply overflow-x-auto rounded border border-border; }
   .table           { @apply min-w-full divide-y divide-border text-sm; }
   .table thead     { @apply bg-steel-50/80; }
   .table th {
@@ -173,15 +180,16 @@
 
   /* ── Sidebar nav ────────────────────────────── */
   .sidebar-item {
-    @apply flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg
+    @apply flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-sm
            transition-all duration-150 cursor-pointer;
   }
   .sidebar-item-active {
-    @apply sidebar-item bg-white/10 text-white;
+    @apply sidebar-item bg-white/10 text-white border-l-2;
+    border-color: hsl(var(--brand-red));
   }
   .sidebar-item-inactive {
-    @apply sidebar-item text-[hsl(var(--sidebar-foreground))]
-           hover:bg-white/8 hover:text-white;
+    @apply sidebar-item text-[hsl(var(--sidebar-foreground))] border-l-2 border-transparent
+           hover:bg-white/[0.08] hover:text-white;
   }
 
   /* ── Page layout ────────────────────────────── */
