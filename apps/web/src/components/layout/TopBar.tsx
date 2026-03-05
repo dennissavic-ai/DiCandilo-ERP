@@ -6,7 +6,7 @@ import { authApi } from '../../services/api';
 
 function Initials({ first, last }: { first?: string; last?: string }) {
   return (
-    <span className="text-xs font-semibold text-primary-700">
+    <span className="text-xs font-semibold" style={{ color: 'hsl(var(--brand-red))' }}>
       {(first?.[0] ?? '').toUpperCase()}{(last?.[0] ?? '').toUpperCase()}
     </span>
   );
@@ -36,7 +36,7 @@ export function TopBar() {
   };
 
   return (
-    <header className="h-13 bg-white border-b border-border flex items-center px-5 gap-4 flex-shrink-0 z-10">
+    <header className="h-13 bg-white border-b border-border flex items-center px-5 gap-4 flex-shrink-0 z-10 shadow-sm">
       {/* Global search */}
       <div className="flex-1 max-w-sm relative">
         <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-steel-400 pointer-events-none" />
@@ -85,7 +85,7 @@ export function TopBar() {
             onClick={() => setMenuOpen((v) => !v)}
             className="flex items-center gap-2.5 pl-1 pr-2 py-1 rounded-lg hover:bg-steel-100 transition-colors"
           >
-            <div className="w-7 h-7 bg-primary-100 rounded-full flex items-center justify-center flex-shrink-0">
+            <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'hsl(var(--brand-red) / 0.15)' }}>
               <Initials first={user?.firstName} last={user?.lastName} />
             </div>
             <div className="hidden sm:flex flex-col text-left leading-tight">

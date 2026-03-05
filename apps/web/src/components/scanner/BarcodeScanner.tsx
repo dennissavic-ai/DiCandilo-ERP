@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { BrowserMultiFormatReader, NotFoundException } from '@zxing/browser';
+import { BrowserMultiFormatReader } from '@zxing/browser';
+// NotFoundException may not be exported in all versions — use name-based check instead
+const NotFoundException = null;
 import { CameraOff, SwitchCamera } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -67,8 +69,8 @@ export function BarcodeScanner({ onResult, paused }: Props) {
           if (result) {
             handleResult(result.getText());
           }
-          // NotFoundException is normal — no barcode detected in this frame
-          if (err && !(err instanceof NotFoundException)) {
+          // Ignore "not found" errors — normal when no barcode is in frame
+          if (err && !err.message?.includes('No MultiFormat Readers') && err.name !== 'NotFoundException') {
             console.warn('[scanner]', err);
           }
         })

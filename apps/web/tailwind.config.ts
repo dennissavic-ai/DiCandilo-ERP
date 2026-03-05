@@ -16,16 +16,16 @@ const config: Config = {
         primary: {
           DEFAULT: 'hsl(var(--primary))',
           foreground: 'hsl(var(--primary-foreground))',
-          50:  '#eff6ff',
-          100: '#dbeafe',
-          200: '#bfdbfe',
-          300: '#93c5fd',
-          400: '#60a5fa',
-          500: '#3b82f6',
-          600: '#2563eb',
-          700: '#1d4ed8',
-          800: '#1e40af',
-          900: '#1e3a8a',
+          50:  '#eef2fa',
+          100: '#d0dcef',
+          200: '#a1b9df',
+          300: '#7296cf',
+          400: '#4473bf',
+          500: '#2756ae',
+          600: '#1b3566',  /* DiCandilo brand navy */
+          700: '#142852',
+          800: '#0d1b3d',
+          900: '#070f29',
         },
         /* ── Neutral / "Steel" palette ─────────── */
         steel: {
@@ -97,8 +97,9 @@ const config: Config = {
         },
       },
       fontFamily: {
-        sans: ['Inter var', 'Inter', 'system-ui', 'sans-serif'],
-        mono: ['JetBrains Mono', 'monospace'],
+        sans:       ['Inter', 'system-ui', 'sans-serif'],
+        condensed:  ['Barlow Condensed', 'sans-serif'],
+        mono:       ['JetBrains Mono', 'monospace'],
       },
       borderRadius: {
         lg: 'var(--radius)',

@@ -46,19 +46,35 @@ export function LoginPage() {
       >
         {/* Logo */}
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-primary-600 rounded-xl flex items-center justify-center shadow-lg">
+          <div
+            className="w-10 h-10 flex items-center justify-center flex-shrink-0"
+            style={{ background: 'hsl(var(--brand-red))' }}
+          >
             <Factory size={20} className="text-white" />
           </div>
           <div>
-            <div className="text-white font-bold text-base leading-tight">DiCandilo</div>
-            <div className="text-white/40 text-[11px] uppercase tracking-widest">Metal ERP</div>
+            <div
+              className="text-white text-lg leading-tight"
+              style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700, letterSpacing: '0.02em' }}
+            >
+              Di Candilo
+            </div>
+            <div
+              className="text-white/45 text-[10px] uppercase"
+              style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 600, letterSpacing: '0.2em' }}
+            >
+              Steel City · ERP
+            </div>
           </div>
         </div>
 
         {/* Hero text */}
         <div className="space-y-6">
           <div>
-            <h1 className="text-3xl font-bold text-white leading-tight tracking-tight">
+            <h1
+              className="text-[2.6rem] leading-none text-white"
+              style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700 }}
+            >
               Industrial-grade ERP for Metal Service Centres
             </h1>
             <p className="mt-4 text-base text-white/50 leading-relaxed">
@@ -75,9 +91,10 @@ export function LoginPage() {
               'Multi-branch, multi-company ready',
             ].map((f) => (
               <li key={f} className="flex items-center gap-3 text-sm text-white/60">
-                <span className="w-5 h-5 rounded-full bg-primary-600/30 flex items-center justify-center flex-shrink-0">
-                  <span className="w-1.5 h-1.5 bg-primary-400 rounded-full" />
-                </span>
+                <span
+                  className="w-1.5 h-1.5 flex-shrink-0"
+                  style={{ background: 'hsl(var(--brand-red))' }}
+                />
                 {f}
               </li>
             ))}
@@ -93,17 +110,35 @@ export function LoginPage() {
         <div className="w-full max-w-[380px] space-y-8">
           {/* Mobile logo */}
           <div className="flex items-center gap-3 lg:hidden">
-            <div className="w-9 h-9 bg-primary-600 rounded-xl flex items-center justify-center">
+            <div
+              className="w-9 h-9 flex items-center justify-center flex-shrink-0"
+              style={{ background: 'hsl(var(--brand-red))' }}
+            >
               <Factory size={18} className="text-white" />
             </div>
             <div>
-              <div className="font-bold text-foreground text-sm">DiCandilo ERP</div>
-              <div className="text-muted-foreground text-xs">Metal Service Centre</div>
+              <div
+                className="text-foreground text-base leading-tight"
+                style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700 }}
+              >
+                Di Candilo
+              </div>
+              <div
+                className="text-muted-foreground text-[10px] uppercase"
+                style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 600, letterSpacing: '0.15em' }}
+              >
+                Steel City · ERP
+              </div>
             </div>
           </div>
 
           <div>
-            <h2 className="text-2xl font-bold text-foreground tracking-tight">Sign in</h2>
+            <h2
+              className="text-4xl text-foreground"
+              style={{ fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700 }}
+            >
+              Sign In
+            </h2>
             <p className="text-muted-foreground text-sm mt-1">
               Enter your credentials to access your workspace
             </p>
