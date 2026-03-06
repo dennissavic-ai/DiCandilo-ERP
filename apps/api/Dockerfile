@@ -1,19 +1,30 @@
 # ── Build stage ───────────────────────────────────────────────────────────────
+# Build context must be the monorepo root so we have access to the workspace
+# package-lock.json and shared packages.
 FROM node:20-alpine AS builder
 WORKDIR /app
 
-# Install dependencies
+# Copy workspace manifests first for better layer caching
 COPY package*.json ./
-COPY prisma ./prisma/
-RUN npm ci --only=production && npm cache clean --force
+COPY packages/shared/package.json ./packages/shared/
+COPY packages/ui/package.json ./packages/ui/
+COPY apps/api/package.json ./apps/api/
+COPY apps/api/prisma ./apps/api/prisma/
 
-# Copy source
-COPY . .
+# Install all deps (dev deps required: prisma CLI, tsx, tsc)
+RUN npm ci && npm cache clean --force
 
-# Generate Prisma client
+# Copy source (shared packages + api)
+COPY packages/shared ./packages/shared/
+COPY packages/ui ./packages/ui/
+COPY apps/api ./apps/api/
+
+WORKDIR /app/apps/api
+
+# Generate Prisma client into root node_modules
 RUN npx prisma generate
 
-# Build TypeScript
+# Compile TypeScript
 RUN npm run build
 
 # ── Runtime stage ─────────────────────────────────────────────────────────────
@@ -23,11 +34,17 @@ WORKDIR /app
 # Install dumb-init for proper signal handling
 RUN apk add --no-cache dumb-init
 
-# Copy from builder
+# Copy node_modules (includes generated Prisma client & workspace symlinks)
 COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/package.json ./
+
+# Copy shared packages (needed at runtime via workspace symlink resolution)
+COPY --from=builder /app/packages/shared ./packages/shared
+COPY --from=builder /app/packages/ui ./packages/ui
+
+# Copy compiled API
+COPY --from=builder /app/apps/api/dist ./apps/api/dist
+COPY --from=builder /app/apps/api/prisma ./apps/api/prisma
+COPY --from=builder /app/apps/api/package.json ./apps/api/
 
 # Non-root user
 RUN addgroup --system --gid 1001 erp && \
@@ -37,4 +54,4 @@ USER erp
 EXPOSE 3001
 
 ENTRYPOINT ["dumb-init", "--"]
-CMD ["node", "dist/app.js"]
+CMD ["node", "apps/api/dist/app.js"]
