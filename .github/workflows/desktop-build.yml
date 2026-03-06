@@ -25,7 +25,7 @@ jobs:
 
       - name: Build macOS DMG
         env:
-          ERP_URL: ${{ secrets.ERP_PRODUCTION_URL }}
+          ERP_URL: ${{ secrets.ERP_PRODUCTION_URL || 'https://sucasa.services' }}
           # Code signing (optional — remove if not signing yet)
           # CSC_LINK: ${{ secrets.MAC_CERTIFICATE }}
           # CSC_KEY_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
@@ -58,7 +58,7 @@ jobs:
 
       - name: Build Windows installer
         env:
-          ERP_URL: ${{ secrets.ERP_PRODUCTION_URL }}
+          ERP_URL: ${{ secrets.ERP_PRODUCTION_URL || 'https://sucasa.services' }}
           # Code signing (optional — remove if not signing yet)
           # WIN_CSC_LINK: ${{ secrets.WIN_CERTIFICATE }}
           # WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CERTIFICATE_PASSWORD }}
