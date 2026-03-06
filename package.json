@@ -16,7 +16,10 @@
     "db:migrate:prod": "npm run db:migrate:prod --workspace=@dicandilo/api",
     "db:studio": "npm run db:studio --workspace=@dicandilo/api",
     "db:seed": "npm run db:seed --workspace=@dicandilo/api",
-    "db:generate": "npm run db:generate --workspace=@dicandilo/api"
+    "db:generate": "npm run db:generate --workspace=@dicandilo/api",
+    "desktop": "npm run dev --workspace=@dicandilo/desktop",
+    "desktop:build:mac": "npm run build:mac --workspace=@dicandilo/desktop",
+    "desktop:build:win": "npm run build:win --workspace=@dicandilo/desktop"
   },
   "devDependencies": {
     "concurrently": "^8.2.2",
