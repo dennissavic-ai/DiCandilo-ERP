@@ -22,5 +22,6 @@
     "concurrently": "^8.2.2",
     "puppeteer": "^24.38.0",
     "turbo": "^2.0.0"
-  }
+  },
+  "packageManager": "npm@10.9.4"
 }
