@@ -23,14 +23,14 @@ npm run dev
 ### macOS (.dmg)
 Must be run on a Mac:
 ```bash
-ERP_URL=https://your-erp-domain.com npm run build:mac
+npm run build:mac
 ```
 Output: `dist-electron/DiCandilo ERP-1.0.0.dmg`
 
 ### Windows (.exe)
 Must be run on Windows or in CI:
 ```bash
-ERP_URL=https://your-erp-domain.com npm run build:win
+npm run build:win
 ```
 Output: `dist-electron/DiCandilo ERP Setup 1.0.0.exe`
 
@@ -49,8 +49,18 @@ GitHub Actions will build both installers and attach them to a GitHub Release au
 
 | Environment Variable | Description |
 |---|---|
-| `ERP_URL` | Production URL of the hosted web app (required for builds) |
+| `ERP_URL` | Override the production URL (defaults to `https://sucasa.services`) |
 | `ELECTRON_ENV` | Set to `development` to load `localhost:4000` |
+
+## Client Subdomains
+
+When onboarding a client on their own subdomain (e.g. `client.sucasa.services`),
+build a custom installer with:
+
+```bash
+ERP_URL=https://client.sucasa.services npm run build:mac
+ERP_URL=https://client.sucasa.services npm run build:win
+```
 
 ## Required GitHub Secrets
 
@@ -58,7 +68,7 @@ Add these in **Settings → Secrets → Actions**:
 
 | Secret | Description |
 |---|---|
-| `ERP_PRODUCTION_URL` | Full URL of your deployed ERP (e.g. `https://erp.dicandilo.com`) |
+| `ERP_PRODUCTION_URL` | Override URL (optional — defaults to `https://sucasa.services`) |
 
 ### Optional (code signing — removes security warnings)
 | Secret | Description |
