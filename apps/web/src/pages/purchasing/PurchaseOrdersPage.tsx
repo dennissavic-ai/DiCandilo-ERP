@@ -27,7 +27,7 @@ export function PurchaseOrdersPage() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['purchase-orders'],
-    queryFn: () => purchasingApi.getOrders({ limit: 100 }).then((r) => r.data),
+    queryFn: () => purchasingApi.listOrders({ limit: 100 }).then((r: any) => r.data),
   });
 
   const orders = (data?.data ?? []).filter((o: any) =>

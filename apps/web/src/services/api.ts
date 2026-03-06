@@ -113,6 +113,7 @@ export const inventoryApi = {
   adjustStock: (data: object) => api.post('/inventory/adjust', data),
   receiveStock: (data: object) => api.post('/inventory/receive', data),
   createTransfer: (data: object) => api.post('/inventory/transfers', data),
+  listTransfers: (params?: object) => api.get('/inventory/transfers', { params }),
   getValuation: (params?: object) => api.get('/inventory/valuation', { params }),
   getTransactions: (itemId: string, params?: object) => api.get(`/inventory/items/${itemId}/transactions`, { params }),
 
@@ -152,6 +153,7 @@ export const purchasingApi = {
   listSuppliers: (params?: object) => api.get<PaginatedResponse<Supplier>>('/purchasing/suppliers', { params }),
   getSupplier: (id: string) => api.get<Supplier>(`/purchasing/suppliers/${id}`),
   createSupplier: (data: object) => api.post('/purchasing/suppliers', data),
+  updateSupplier: (id: string, data: object) => api.put(`/purchasing/suppliers/${id}`, data),
   listOrders: (params?: object) => api.get<PaginatedResponse<PurchaseOrder>>('/purchasing/orders', { params }),
   getOrder: (id: string) => api.get<PurchaseOrder>(`/purchasing/orders/${id}`),
   createOrder: (data: object) => api.post('/purchasing/orders', data),
@@ -163,6 +165,8 @@ export const purchasingApi = {
 // Accounting
 export const accountingApi = {
   listAccounts: (params?: object) => api.get('/accounting/accounts', { params }),
+  createAccount: (data: object) => api.post('/accounting/accounts', data),
+  updateAccount: (id: string, data: object) => api.put(`/accounting/accounts/${id}`, data),
   listInvoices: (params?: object) => api.get<PaginatedResponse<Invoice>>('/accounting/invoices', { params }),
   getInvoices:  (params?: object) => api.get<PaginatedResponse<Invoice>>('/accounting/invoices', { params }),
   getInvoice: (id: string) => api.get<Invoice>(`/accounting/invoices/${id}`),
@@ -171,6 +175,10 @@ export const accountingApi = {
   getARAgeing: () => api.get('/accounting/ar-aging'),
   getTrialBalance: (params?: object) => api.get('/accounting/trial-balance', { params }),
   listJournalEntries: (params?: object) => api.get('/accounting/journal-entries', { params }),
+  // AP
+  listAPInvoices: (params?: object) => api.get('/accounting/ap-invoices', { params }),
+  createAPInvoice: (data: object) => api.post('/accounting/ap-invoices', data),
+  recordAPPayment: (id: string, data: object) => api.post(`/accounting/ap-invoices/${id}/payments`, data),
 };
 
 // Reporting
@@ -188,6 +196,7 @@ export const processingApi = {
   getWorkOrder: (id: string) => api.get<WorkOrder>(`/processing/work-orders/${id}`),
   createWorkOrder: (data: object) => api.post('/processing/work-orders', data),
   updateStatus: (id: string, status: string) => api.patch(`/processing/work-orders/${id}/status`, { status }),
+  logTime: (id: string, data: object) => api.post(`/processing/work-orders/${id}/time-logs`, data),
   getSchedule: (params?: object) => api.get('/processing/schedule', { params }),
 };
 
