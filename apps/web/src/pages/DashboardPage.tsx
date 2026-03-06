@@ -61,7 +61,7 @@ interface KpiProps {
   sub?: string;
   trend?: 'up' | 'down' | 'flat';
   trendValue?: string;
-  icon: React.ComponentType<{ size?: number; className?: string }>;
+  icon: React.ComponentType<{ size?: number | string; className?: string }>;
   iconBg: string;
   onClick?: () => void;
 }

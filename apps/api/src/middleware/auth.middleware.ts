@@ -12,8 +12,8 @@ export interface JWTPayload {
   exp: number;
 }
 
-declare module 'fastify' {
-  interface FastifyRequest {
+declare module '@fastify/jwt' {
+  interface FastifyJWT {
     user: JWTPayload;
   }
 }

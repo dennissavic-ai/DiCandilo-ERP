@@ -1,5 +1,6 @@
 import { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/database';
 import { authenticate, requirePermission } from '../../middleware/auth.middleware';
 import { writeAuditLog } from '../../middleware/audit.middleware';
@@ -128,7 +129,7 @@ export const salesRoutes: FastifyPluginAsync = async (fastify) => {
       }).parse(request.body);
       const existing = await prisma.customer.findFirst({ where: { companyId, code: body.code, deletedAt: null } });
       if (existing) throw new ConflictError(`Customer code '${body.code}' already exists`);
-      const customer = await prisma.customer.create({ data: { companyId, ...body, createdBy: sub, updatedBy: sub } });
+      const customer = await prisma.customer.create({ data: { companyId, ...body, createdBy: sub, updatedBy: sub } as Prisma.CustomerUncheckedCreateInput });
       return reply.status(201).send(customer);
     } catch (err) { return handleError(reply, err); }
   });
@@ -455,7 +456,7 @@ export const salesRoutes: FastifyPluginAsync = async (fastify) => {
           taxAmount: body.taxAmount,
           freightAmount: body.freightAmount,
           totalAmount: subtotal - body.discountAmount + body.taxAmount + body.freightAmount,
-          shippingAddress: body.shippingAddress,
+          shippingAddress: body.shippingAddress as Prisma.InputJsonValue,
           terms: body.terms,
           notes: body.notes,
           createdBy: sub,
@@ -648,7 +649,7 @@ export const salesRoutes: FastifyPluginAsync = async (fastify) => {
         effectiveTo: z.string().datetime().optional(),
       }).parse(request.body);
       const rule = await prisma.pricingRule.create({
-        data: { companyId, ...body, effectiveFrom: body.effectiveFrom ? new Date(body.effectiveFrom) : undefined, effectiveTo: body.effectiveTo ? new Date(body.effectiveTo) : undefined, createdBy: sub, updatedBy: sub },
+        data: { companyId, ...body, effectiveFrom: body.effectiveFrom ? new Date(body.effectiveFrom) : undefined, effectiveTo: body.effectiveTo ? new Date(body.effectiveTo) : undefined },
       });
       return reply.status(201).send(rule);
     } catch (err) { return handleError(reply, err); }

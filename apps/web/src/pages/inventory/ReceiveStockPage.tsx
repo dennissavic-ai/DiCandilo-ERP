@@ -103,7 +103,7 @@ export function ReceiveStockPage() {
                 <label className="label">Receiving Location *</label>
                 <select className="select" {...register('locationId', { required: true })}>
                   <option value="">— Select location —</option>
-                  {(locations as { id: string; code: string; name: string }[] | undefined)?.filter((l) => ['RECEIVING', 'STORAGE'].includes(l.type ?? '')).map((l) => (
+                  {(locations as { id: string; code: string; name: string; type?: string }[] | undefined)?.filter((l) => ['RECEIVING', 'STORAGE'].includes(l.type ?? '')).map((l) => (
                     <option key={l.id} value={l.id}>{l.code} — {l.name}</option>
                   ))}
                   {(locations as { id: string; code: string; name: string; type?: string }[] | undefined)?.map((l) => (

@@ -48,7 +48,7 @@ const ENTITY_CONFIG: Record<
     label: string;
     color: string;
     bgColor: string;
-    Icon: React.ComponentType<{ size?: number; className?: string }>;
+    Icon: React.ComponentType<{ size?: number | string; className?: string }>;
   }
 > = {
   INVENTORY_ITEM: { label: 'Inventory Item', color: 'text-blue-400',  bgColor: 'bg-blue-500/20',  Icon: Layers },
@@ -208,8 +208,8 @@ function EntityDetails({ type, entity }: { type: EntityType; entity: Record<stri
       <div className="space-y-2">
         <DetailRow label="Product" value={`${product?.code ?? '—'} · ${product?.description ?? '—'}`} />
         <DetailRow label="Location" value={location ? `${location.code} — ${location.name}` : '—'} />
-        {entity.heatNumber && <DetailRow label="Heat #" value={String(entity.heatNumber)} mono />}
-        {entity.lotNumber  && <DetailRow label="Lot #"  value={String(entity.lotNumber)}  mono />}
+        {!!entity.heatNumber && <DetailRow label="Heat #" value={String(entity.heatNumber)} mono />}
+        {!!entity.lotNumber  && <DetailRow label="Lot #"  value={String(entity.lotNumber)}  mono />}
         <div className="grid grid-cols-3 gap-2 mt-3">
           <StockPill label="On Hand"     value={String(entity.qtyOnHand ?? 0)}     color="text-white" />
           <StockPill label="Available"   value={String(entity.qtyAvailable ?? 0)}  color="text-green-400" />
@@ -238,7 +238,7 @@ function EntityDetails({ type, entity }: { type: EntityType; entity: Record<stri
         <DetailRow label="WO #"    value={String(entity.workOrderNumber ?? '—')} mono />
         <DetailRow label="Status"  value={String(entity.status ?? '—')} />
         <DetailRow label="Priority" value={String(entity.priority ?? '—')} />
-        {entity.scheduledDate && (
+        {!!entity.scheduledDate && (
           <DetailRow label="Scheduled" value={new Date(String(entity.scheduledDate)).toLocaleDateString()} />
         )}
       </div>
@@ -250,8 +250,8 @@ function EntityDetails({ type, entity }: { type: EntityType; entity: Record<stri
       <div className="space-y-2">
         <DetailRow label="SKU"         value={String(entity.code ?? '—')} mono />
         <DetailRow label="Description" value={String(entity.description ?? '—')} />
-        {entity.grade    && <DetailRow label="Grade"  value={String(entity.grade)}    />}
-        {entity.shape    && <DetailRow label="Shape"  value={String(entity.shape)}    />}
+        {!!entity.grade    && <DetailRow label="Grade"  value={String(entity.grade)}    />}
+        {!!entity.shape    && <DetailRow label="Shape"  value={String(entity.shape)}    />}
         {entity.listPrice !== undefined && (
           <DetailRow label="List price" value={`$${(Number(entity.listPrice) / 100).toFixed(2)}`} />
         )}
@@ -264,9 +264,9 @@ function EntityDetails({ type, entity }: { type: EntityType; entity: Record<stri
       <div className="space-y-2">
         <DetailRow label="Manifest #" value={String(entity.manifestNumber ?? '—')} mono />
         <DetailRow label="Status"     value={String(entity.status ?? '—')} />
-        {entity.carrier         && <DetailRow label="Carrier"  value={String(entity.carrier)}         />}
-        {entity.trackingNumber  && <DetailRow label="Tracking" value={String(entity.trackingNumber)}  mono />}
-        {entity.shipDate && (
+        {!!entity.carrier         && <DetailRow label="Carrier"  value={String(entity.carrier)}         />}
+        {!!entity.trackingNumber  && <DetailRow label="Tracking" value={String(entity.trackingNumber)}  mono />}
+        {!!entity.shipDate && (
           <DetailRow label="Ship date" value={new Date(String(entity.shipDate)).toLocaleDateString()} />
         )}
       </div>
