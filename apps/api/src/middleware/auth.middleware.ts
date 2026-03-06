@@ -84,7 +84,7 @@ export async function authenticate(
 
     // SOC2 CC6 — Gate access when a password change is required (e.g., first login)
     // Allow /auth/* routes through so the user can change their password
-    const path = request.routerPath ?? (request as any).url ?? '';
+    const path = request.routeOptions?.url ?? (request as any).url ?? '';
     const isAuthRoute = path.includes('/auth/');
     if (user.requirePasswordChange && !isAuthRoute) {
       return reply.status(403).send({
