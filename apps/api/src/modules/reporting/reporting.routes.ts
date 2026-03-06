@@ -68,7 +68,7 @@ export const reportingRoutes: FastifyPluginAsync = async (fastify) => {
 
         // Open AP (supplier invoices not yet paid)
         prisma.supplierInvoice.aggregate({
-          where: { companyId, status: { notIn: ['PAID', 'CANCELLED'] } },
+          where: { supplier: { companyId }, status: { notIn: ['PAID', 'CANCELLED'] } },
           _sum: { totalAmount: true, amountPaid: true },
         }),
 
@@ -88,8 +88,8 @@ export const reportingRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       // AP balance
-      const totalAP = Number(openAPBalance._sum.totalAmount ?? 0);
-      const paidAP = Number(openAPBalance._sum.amountPaid ?? 0);
+      const totalAP = Number(openAPBalance._sum?.totalAmount ?? 0);
+      const paidAP = Number(openAPBalance._sum?.amountPaid ?? 0);
       const openAP = totalAP - paidAP;
 
       // Working capital = current assets - current liabilities (simplified: AR + Cash - AP)
@@ -281,7 +281,7 @@ export const reportingRoutes: FastifyPluginAsync = async (fastify) => {
 
         // On-time delivery: first receipt date vs expectedDate
         if (po.receipts.length > 0 && po.expectedDate) {
-          const firstReceiptDate = po.receipts[0].receivedAt;
+          const firstReceiptDate = po.receipts[0].receivedDate;
           if (firstReceiptDate && firstReceiptDate <= po.expectedDate) {
             s.onTimeCount++;
           } else {
@@ -366,7 +366,7 @@ export const reportingRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       // Sort by urgency (CRITICAL first) then by shortage depth
-      const urgencyRank = { CRITICAL: 0, HIGH: 1, MEDIUM: 2 };
+      const urgencyRank: Record<string, number> = { CRITICAL: 0, HIGH: 1, MEDIUM: 2 };
       suggestions.sort((a, b) => urgencyRank[a.urgency] - urgencyRank[b.urgency] || a.totalAvailable - b.totalAvailable);
 
       return { count: suggestions.length, suggestions };

@@ -1,4 +1,5 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../config/database';
 import { JWTPayload } from './auth.middleware';
 
@@ -22,8 +23,8 @@ export async function writeAuditLog(
       action,
       entity,
       entityId,
-      oldValues: oldValues ?? undefined,
-      newValues: newValues ?? undefined,
+      oldValues: oldValues as Prisma.InputJsonValue ?? undefined,
+      newValues: newValues as Prisma.InputJsonValue ?? undefined,
       ipAddress: request.ip,
       userAgent: request.headers['user-agent'] ?? undefined,
     },

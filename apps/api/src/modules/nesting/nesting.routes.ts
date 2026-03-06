@@ -1,5 +1,6 @@
 import { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/database';
 import { authenticate, requirePermission } from '../../middleware/auth.middleware';
 import { handleError, NotFoundError } from '../../utils/errors';
@@ -70,7 +71,7 @@ export const nestingRoutes: FastifyPluginAsync = async (fastify) => {
           stockQty: body.stockQty,
           workOrderId: body.workOrderId,
           notes: body.notes,
-          resultData: resultData as Record<string, unknown>,
+          resultData: resultData as Prisma.InputJsonValue,
           createdBy: sub,
           pieces: {
             create: body.pieces.map((p, i) => ({

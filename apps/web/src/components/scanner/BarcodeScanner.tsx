@@ -86,7 +86,7 @@ export function BarcodeScanner({ onResult, paused }: Props) {
     }
 
     return () => {
-      reader.reset();
+      (reader as { reset?: () => void }).reset?.();
     };
   }, [cameras, cameraIndex, paused, handleResult]);
 

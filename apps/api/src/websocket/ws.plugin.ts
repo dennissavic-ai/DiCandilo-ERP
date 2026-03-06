@@ -1,14 +1,20 @@
 import { FastifyPluginAsync } from 'fastify';
-import { WebSocket } from 'ws';
+
+// Minimal WebSocket interface to avoid @types/ws version dependency
+interface WsClient {
+  readonly readyState: number;
+  send(data: string): void;
+}
+const WS_OPEN = 1; // WebSocket.OPEN constant
 
 // Connected clients indexed by companyId
-const clients = new Map<string, Set<WebSocket>>();
+const clients = new Map<string, Set<WsClient>>();
 
 export function emitInventoryUpdate(payload: Record<string, unknown>): void {
   const message = JSON.stringify({ event: 'INVENTORY_UPDATE', data: payload, timestamp: new Date().toISOString() });
   clients.forEach((sockets) => {
     sockets.forEach((ws) => {
-      if (ws.readyState === WebSocket.OPEN) {
+      if (ws.readyState === WS_OPEN) {
         ws.send(message);
       }
     });
@@ -20,7 +26,7 @@ export function emitToCompany(companyId: string, event: string, data: unknown): 
   if (!sockets) return;
   const message = JSON.stringify({ event, data, timestamp: new Date().toISOString() });
   sockets.forEach((ws) => {
-    if (ws.readyState === WebSocket.OPEN) ws.send(message);
+    if (ws.readyState === WS_OPEN) ws.send(message);
   });
 }
 
@@ -29,7 +35,7 @@ export const websocketPlugin: FastifyPluginAsync = async (fastify) => {
     // On connect, client should send auth: { token: "..." }
     let companyId: string | null = null;
 
-    socket.on('message', (rawMsg) => {
+    socket.on('message', (rawMsg: Buffer | string) => {
       try {
         const msg = JSON.parse(rawMsg.toString()) as { type: string; token?: string; companyId?: string };
 

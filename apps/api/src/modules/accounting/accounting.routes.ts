@@ -291,7 +291,7 @@ export const accountingRoutes: FastifyPluginAsync = async (fastify) => {
       const { skip, take, page, limit } = parsePagination(request.query as { page?: number; limit?: number });
       const { status, supplierId, overdue } = request.query as { status?: string; supplierId?: string; overdue?: string };
       const where = {
-        companyId: companyId,
+        supplier: { companyId },
         ...(status && { status: status as 'PENDING' }),
         ...(supplierId && { supplierId }),
         ...(overdue === 'true' && { dueDate: { lt: new Date() }, status: { not: 'PAID' as const } }),
@@ -326,7 +326,6 @@ export const accountingRoutes: FastifyPluginAsync = async (fastify) => {
 
       const supplierInv = await prisma.supplierInvoice.create({
         data: {
-          companyId,
           supplierId: body.supplierId,
           purchaseOrderId: body.purchaseOrderId,
           invoiceNumber: body.invoiceNumber,
@@ -337,7 +336,6 @@ export const accountingRoutes: FastifyPluginAsync = async (fastify) => {
           amountPaid: 0,
           notes: body.notes,
           createdBy: sub,
-          updatedBy: sub,
         },
       });
 
@@ -363,7 +361,7 @@ export const accountingRoutes: FastifyPluginAsync = async (fastify) => {
         notes: z.string().optional(),
       }).parse(request.body);
 
-      const inv = await prisma.supplierInvoice.findFirst({ where: { id, companyId } });
+      const inv = await prisma.supplierInvoice.findFirst({ where: { id, supplier: { companyId } } });
       if (!inv) throw new NotFoundError('SupplierInvoice', id);
 
       const newAmountPaid = Number(inv.amountPaid) + body.amount;
@@ -373,8 +371,7 @@ export const accountingRoutes: FastifyPluginAsync = async (fastify) => {
       const [payment] = await prisma.$transaction([
         prisma.supplierPayment.create({
           data: {
-            supplierInvoiceId: id,
-            supplierId: inv.supplierId,
+            invoiceId: id,
             paymentDate: new Date(body.paymentDate),
             amount: body.amount,
             method: body.method,
@@ -385,7 +382,7 @@ export const accountingRoutes: FastifyPluginAsync = async (fastify) => {
         }),
         prisma.supplierInvoice.update({
           where: { id },
-          data: { amountPaid: newAmountPaid, status: newStatus, updatedBy: sub },
+          data: { amountPaid: newAmountPaid, status: newStatus },
         }),
       ]);
 

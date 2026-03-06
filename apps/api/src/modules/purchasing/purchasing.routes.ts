@@ -1,5 +1,6 @@
 import { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/database';
 import { authenticate, requirePermission } from '../../middleware/auth.middleware';
 import { writeAuditLog } from '../../middleware/audit.middleware';
@@ -88,7 +89,7 @@ export const purchasingRoutes: FastifyPluginAsync = async (fastify) => {
       }).parse(request.body);
       const existing = await prisma.supplier.findFirst({ where: { companyId, code: body.code, deletedAt: null } });
       if (existing) throw new ConflictError(`Supplier code '${body.code}' already exists`);
-      const supplier = await prisma.supplier.create({ data: { companyId, ...body, createdBy: sub, updatedBy: sub } });
+      const supplier = await prisma.supplier.create({ data: { companyId, ...body, billingAddress: body.billingAddress as Prisma.InputJsonValue, contacts: body.contacts as Prisma.InputJsonValue, createdBy: sub, updatedBy: sub } });
       return reply.status(201).send(supplier);
     } catch (err) { return handleError(reply, err); }
   });

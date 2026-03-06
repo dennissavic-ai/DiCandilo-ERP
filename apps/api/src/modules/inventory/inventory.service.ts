@@ -591,10 +591,11 @@ export class InventoryService {
   }
 
   async createMTR(inventoryItemId: string, data: Record<string, unknown>, userId: string) {
+    const { inventoryItemId: _ignored, ...rest } = data as Prisma.MaterialTestReportUncheckedCreateInput;
     return prisma.materialTestReport.create({
       data: {
         inventoryItemId,
-        ...(data as Prisma.MaterialTestReportCreateInput),
+        ...rest,
         createdBy: userId,
       },
     });

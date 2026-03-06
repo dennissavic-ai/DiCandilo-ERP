@@ -512,13 +512,15 @@ export const inventoryRoutes: FastifyPluginAsync = async (fastify) => {
                 where: { id: existing.id },
                 data: { qtyOnHand: newQty, unitCost, totalCost: newQty * unitCost, version: { increment: 1 } },
               }),
-              prisma.inventoryTransaction.create({
+              prisma.stockTransaction.create({
                 data: {
                   inventoryItemId: existing.id,
                   transactionType: 'ADJUSTMENT',
                   quantity: newQty - prevQty,
                   unitCost,
                   totalCost: Math.abs(newQty - prevQty) * unitCost,
+                  qtyBefore: prevQty,
+                  qtyAfter: newQty,
                   notes: 'Opening balance import',
                   createdBy: sub,
                 },
@@ -529,13 +531,15 @@ export const inventoryRoutes: FastifyPluginAsync = async (fastify) => {
             const item = await prisma.inventoryItem.create({
               data: { productId: product.id, locationId: location.id, qtyOnHand, unitCost, totalCost: qtyOnHand * unitCost, heatNumber, certificateNumber: certNumber, lotNumber, thickness, width, length },
             });
-            await prisma.inventoryTransaction.create({
+            await prisma.stockTransaction.create({
               data: {
                 inventoryItemId: item.id,
                 transactionType: 'OPENING',
                 quantity: qtyOnHand,
                 unitCost,
                 totalCost: qtyOnHand * unitCost,
+                qtyBefore: 0,
+                qtyAfter: qtyOnHand,
                 notes: 'Opening balance import',
                 createdBy: sub,
               },
