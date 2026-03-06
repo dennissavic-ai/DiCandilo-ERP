@@ -3,7 +3,8 @@ import {
   Package, ShoppingCart, Truck, BarChart3,
   FileText, Wrench, DollarSign, Users, ClipboardList, QrCode,
   Factory, ChevronDown, Layers, TrendingUp, Settings,
-  BookOpen, Gauge, Mail,
+  BookOpen, Gauge, Mail, ArrowLeftRight, FileCheck,
+  Tag, Globe, Phone,
 } from 'lucide-react';
 import { useState } from 'react';
 import clsx from 'clsx';
@@ -11,11 +12,11 @@ import clsx from 'clsx';
 interface NavChild {
   label: string;
   to: string;
-  icon: React.ComponentType<{ size?: number; className?: string }>;
+  icon: React.ComponentType<any>;
 }
 interface NavItem {
   label: string;
-  icon: React.ComponentType<{ size?: number; className?: string }>;
+  icon: React.ComponentType<any>;
   to?: string;
   children?: NavChild[];
   end?: boolean;
@@ -29,18 +30,22 @@ const NAV_OPS: NavItem[] = [
   {
     label: 'Inventory', icon: Package,
     children: [
-      { label: 'Stock on Hand',  to: '/inventory',          icon: Layers },
-      { label: 'Products',       to: '/inventory/products',  icon: Package },
-      { label: 'Receive Stock',  to: '/inventory/receive',   icon: Truck },
-      { label: 'Adjust Stock',   to: '/inventory/adjust',    icon: Settings },
+      { label: 'Stock on Hand',  to: '/inventory',               icon: Layers },
+      { label: 'Products',       to: '/inventory/products',       icon: Package },
+      { label: 'Receive Stock',  to: '/inventory/receive',        icon: Truck },
+      { label: 'Adjust Stock',   to: '/inventory/adjust',         icon: Settings },
+      { label: 'Transfer Stock', to: '/inventory/transfer',       icon: ArrowLeftRight },
+      { label: 'Mill Test Reports', to: '/inventory/mtr',         icon: FileCheck },
     ],
   },
   {
     label: 'Sales', icon: ShoppingCart,
     children: [
-      { label: 'Sales Orders', to: '/sales/orders',    icon: FileText },
-      { label: 'Quotes',       to: '/sales/quotes',    icon: ClipboardList },
-      { label: 'Customers',    to: '/sales/customers', icon: Users },
+      { label: 'Sales Orders',   to: '/sales/orders',      icon: FileText },
+      { label: 'Quotes',         to: '/sales/quotes',      icon: ClipboardList },
+      { label: 'Customers',      to: '/sales/customers',   icon: Users },
+      { label: 'Price Books',    to: '/sales/price-books', icon: Tag },
+      { label: 'Customer Portal',to: '/sales/portal',      icon: Globe },
     ],
   },
   {
@@ -61,9 +66,20 @@ const NAV_OPS: NavItem[] = [
   {
     label: 'Accounting', icon: DollarSign,
     children: [
-      { label: 'Invoices',          to: '/accounting/invoices',          icon: FileText },
-      { label: 'AR Ageing',         to: '/accounting/ar-ageing',         icon: TrendingUp },
-      { label: 'Chart of Accounts', to: '/accounting/chart-of-accounts', icon: BookOpen },
+      { label: 'Invoices',           to: '/accounting/invoices',           icon: FileText },
+      { label: 'AR Ageing',          to: '/accounting/ar-ageing',          icon: TrendingUp },
+      { label: 'Accounts Payable',   to: '/accounting/accounts-payable',   icon: DollarSign },
+      { label: 'Chart of Accounts',  to: '/accounting/chart-of-accounts',  icon: BookOpen },
+    ],
+  },
+  {
+    label: 'Shipping', icon: Truck, to: '/shipping', children: undefined,
+  } as NavItem,
+  {
+    label: 'CRM', icon: Phone,
+    children: [
+      { label: 'Prospects',     to: '/crm/prospects',     icon: TrendingUp },
+      { label: 'Call Reports',  to: '/crm/call-reports',  icon: Phone },
     ],
   },
 ];
