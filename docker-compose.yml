@@ -63,7 +63,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    command: sh -c "npx prisma migrate deploy && npx prisma db seed && npm run dev"
+    command: sh -c "npx prisma migrate deploy && npx prisma db seed && npx tsx watch src/app.ts"
 
   # ── Web (React + Vite) ────────────────────────────────────────────────────────
   web:
