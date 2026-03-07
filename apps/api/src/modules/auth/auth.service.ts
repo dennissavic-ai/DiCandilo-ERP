@@ -75,64 +75,19 @@ export class AuthService {
       include: { role: true },
     });
 
-    // --- Account lockout check (SOC2 CC6 / ISO 27001 A.9.4.2) ---
-    if (user?.lockedUntil && user.lockedUntil > new Date()) {
-      await logSecurityEvent('LOGIN_LOCKED', {
-        userId: user.id,
-        companyId: user.companyId,
-        ipAddress,
-        userAgent,
-        severity: 'WARNING',
-        metadata: { email, lockedUntil: user.lockedUntil },
-      });
-      const minutesLeft = Math.ceil(
-        (user.lockedUntil.getTime() - Date.now()) / 60000
-      );
-      throw new AppError(
-        `Account is temporarily locked. Try again in ${minutesLeft} minute(s).`,
-        423,
-        'ACCOUNT_LOCKED'
-      );
-    }
-
     // --- Credential verification ---
     const credentialsValid =
       user != null && (await argon2.verify(user.passwordHash, dto.password));
 
     if (!credentialsValid) {
-      if (user) {
-        const newAttempts = (user.loginAttempts ?? 0) + 1;
-        const shouldLock = newAttempts >= env.MAX_LOGIN_ATTEMPTS;
-        const lockedUntil = shouldLock
-          ? new Date(Date.now() + env.LOCKOUT_DURATION_MINUTES * 60 * 1000)
-          : null;
-
-        await prisma.user.update({
-          where: { id: user.id },
-          data: {
-            loginAttempts: newAttempts,
-            ...(lockedUntil ? { lockedUntil } : {}),
-          },
-        });
-
-        await logSecurityEvent(shouldLock ? 'LOGIN_LOCKED' : 'LOGIN_FAILURE', {
-          userId: user.id,
-          companyId: user.companyId,
-          ipAddress,
-          userAgent,
-          severity: shouldLock ? 'CRITICAL' : 'WARNING',
-          metadata: { email, attempts: newAttempts, locked: shouldLock },
-        });
-      } else {
-        // Log even when user not found to avoid user-enumeration via timing
-        await logSecurityEvent('LOGIN_FAILURE', {
-          ipAddress,
-          userAgent,
-          severity: 'WARNING',
-          metadata: { email },
-        });
-      }
-
+      await logSecurityEvent('LOGIN_FAILURE', {
+        userId: user?.id,
+        companyId: user?.companyId,
+        ipAddress,
+        userAgent,
+        severity: 'WARNING',
+        metadata: { email },
+      });
       throw new AppError('Invalid email or password', 401, 'INVALID_CREDENTIALS');
     }
 
@@ -170,14 +125,9 @@ export class AuthService {
       });
     }
 
-    // --- Reset lockout counters on successful login ---
     await prisma.user.update({
       where: { id: user.id },
-      data: {
-        lastLoginAt: new Date(),
-        loginAttempts: 0,
-        lockedUntil: null,
-      },
+      data: { lastLoginAt: new Date() },
     });
 
     await logSecurityEvent('LOGIN_SUCCESS', {
