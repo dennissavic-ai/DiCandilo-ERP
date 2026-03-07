@@ -232,13 +232,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
     try {
       const body = enableMfaSchema.parse(request.body);
       const { sub: userId } = request.user as { sub: string };
-      await service.enableMfa(
-        userId,
-        body.secret,
-        body.totpCode,
-        request.ip,
-        request.headers['user-agent']
-      );
+      await service.enableMfa(userId, body.secret, body.totpCode);
       return reply.send({ message: 'MFA enabled successfully' });
     } catch (err) {
       return handleError(reply, err);
