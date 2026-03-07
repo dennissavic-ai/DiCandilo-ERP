@@ -55,15 +55,12 @@ services:
       JWT_REFRESH_EXPIRES: 7d
       FRONTEND_URL: http://localhost:3000
       LOG_LEVEL: info
-    volumes:
-      - ./apps/api/src:/app/apps/api/src:ro
-      - ./apps/api/prisma:/app/apps/api/prisma:ro
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-    command: sh -c "npx prisma migrate deploy && npx prisma db seed && npx tsx watch src/app.ts"
+    command: sh -c "npx prisma migrate deploy && npx prisma db seed && node /app/apps/api/dist/app.js"
 
   # ── Web (React + Vite) ────────────────────────────────────────────────────────
   web:
