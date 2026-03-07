@@ -1,6 +1,5 @@
 import argon2 from 'argon2';
 import { v4 as uuidv4 } from 'uuid';
-import { authenticator } from 'otplib';
 import { prisma } from '../../config/database';
 import { env } from '../../config/env';
 import { AppError, NotFoundError } from '../../utils/errors';
@@ -95,35 +94,6 @@ export class AuthService {
       throw new AppError('Your account has been deactivated', 401, 'ACCOUNT_INACTIVE');
     }
 
-    // --- MFA verification (SOC2 CC6 / NIST SP 800-63B AAL2) ---
-    if (user.mfaEnabled && user.mfaSecret) {
-      if (!dto.totpCode) {
-        throw new AppError('MFA code required', 401, 'MFA_REQUIRED');
-      }
-      authenticator.options = { issuer: env.MFA_ISSUER };
-      const valid = authenticator.verify({
-        token: dto.totpCode,
-        secret: user.mfaSecret,
-      });
-      if (!valid) {
-        await logSecurityEvent('MFA_CHALLENGE_FAILURE', {
-          userId: user.id,
-          companyId: user.companyId,
-          ipAddress,
-          userAgent,
-          severity: 'WARNING',
-          metadata: { email },
-        });
-        throw new AppError('Invalid MFA code', 401, 'INVALID_MFA_CODE');
-      }
-      await logSecurityEvent('MFA_CHALLENGE_SUCCESS', {
-        userId: user.id,
-        companyId: user.companyId,
-        ipAddress,
-        userAgent,
-        metadata: { email },
-      });
-    }
 
     await prisma.user.update({
       where: { id: user.id },
@@ -240,44 +210,16 @@ export class AuthService {
    * Generate a new TOTP secret and return the otpauth URI for QR display.
    * The secret is NOT yet saved — the user must confirm a valid code first.
    */
-  generateMfaSecret(userEmail: string): { secret: string; otpauthUrl: string } {
-    authenticator.options = { issuer: env.MFA_ISSUER };
-    const secret = authenticator.generateSecret();
-    const otpauthUrl = authenticator.keyuri(userEmail, env.MFA_ISSUER, secret);
-    return { secret, otpauthUrl };
+  generateMfaSecret(_userEmail: string): { secret: string; otpauthUrl: string } {
+    throw new AppError('MFA not available in this build', 501, 'MFA_UNAVAILABLE');
   }
 
-  /**
-   * Verify the provided TOTP code against a pending secret, then persist and
-   * enable MFA on the account.
-   */
   async enableMfa(
-    userId: string,
-    secret: string,
-    totpCode: string,
-    ipAddress?: string,
-    userAgent?: string
+    _userId: string,
+    _secret: string,
+    _totpCode: string,
   ): Promise<void> {
-    authenticator.options = { issuer: env.MFA_ISSUER };
-    const valid = authenticator.verify({ token: totpCode, secret });
-    if (!valid) {
-      throw new AppError('Invalid TOTP code — MFA not enabled', 422, 'INVALID_MFA_CODE');
-    }
-
-    const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (!user) throw new NotFoundError('User', userId);
-
-    await prisma.user.update({
-      where: { id: userId },
-      data: { mfaEnabled: true, mfaSecret: secret },
-    });
-
-    await logSecurityEvent('MFA_ENABLED', {
-      userId,
-      companyId: user.companyId,
-      ipAddress,
-      userAgent,
-    });
+    throw new AppError('MFA not available in this build', 501, 'MFA_UNAVAILABLE');
   }
 
   async disableMfa(
