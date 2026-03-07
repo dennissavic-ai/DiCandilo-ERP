@@ -73,7 +73,7 @@ services:
     container_name: erp_web
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "3000:80"
     environment:
       VITE_API_URL: http://localhost:3001/api/v1
     depends_on:
