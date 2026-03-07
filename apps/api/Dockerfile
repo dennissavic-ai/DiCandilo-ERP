@@ -4,6 +4,9 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
 
+# openssl required so Prisma generates the correct engine binary
+RUN apk add --no-cache openssl
+
 # Copy workspace manifests first for better layer caching
 COPY package*.json ./
 COPY packages/shared/package.json ./packages/shared/
@@ -31,24 +34,25 @@ RUN npm run build
 FROM node:20-alpine AS runner
 WORKDIR /app
 
-# Install dumb-init for proper signal handling
-RUN apk add --no-cache dumb-init
+# Install dumb-init for signal handling + openssl for Prisma engine detection
+RUN apk add --no-cache dumb-init openssl
 
-# Copy node_modules (includes generated Prisma client & workspace symlinks)
-COPY --from=builder /app/node_modules ./node_modules
-
-# Copy shared packages (needed at runtime via workspace symlink resolution)
-COPY --from=builder /app/packages/shared ./packages/shared
-COPY --from=builder /app/packages/ui ./packages/ui
-
-# Copy compiled API
-COPY --from=builder /app/apps/api/dist ./apps/api/dist
-COPY --from=builder /app/apps/api/prisma ./apps/api/prisma
-COPY --from=builder /app/apps/api/package.json ./apps/api/
-
-# Non-root user
+# Non-root user (created before COPY so we can use --chown)
 RUN addgroup --system --gid 1001 erp && \
     adduser --system --uid 1001 --ingroup erp erp
+
+# Copy node_modules (includes generated Prisma client & workspace symlinks)
+COPY --chown=erp:erp --from=builder /app/node_modules ./node_modules
+
+# Copy shared packages (needed at runtime via workspace symlink resolution)
+COPY --chown=erp:erp --from=builder /app/packages/shared ./packages/shared
+COPY --chown=erp:erp --from=builder /app/packages/ui ./packages/ui
+
+# Copy compiled API
+COPY --chown=erp:erp --from=builder /app/apps/api/dist ./apps/api/dist
+COPY --chown=erp:erp --from=builder /app/apps/api/prisma ./apps/api/prisma
+COPY --chown=erp:erp --from=builder /app/apps/api/package.json ./apps/api/
+
 USER erp
 
 EXPOSE 3001
