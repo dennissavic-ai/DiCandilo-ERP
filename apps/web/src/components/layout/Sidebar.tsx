@@ -79,8 +79,9 @@ const NAV_OPS: NavItem[] = [
   {
     label: 'CRM', icon: Phone,
     children: [
-      { label: 'Prospects',     to: '/crm/prospects',     icon: TrendingUp },
-      { label: 'Call Reports',  to: '/crm/call-reports',  icon: Phone },
+      { label: 'Pipeline',     to: '/crm/prospects',    icon: TrendingUp },
+      { label: 'Contacts',     to: '/crm/contacts',     icon: Users },
+      { label: 'Call Reports', to: '/crm/call-reports', icon: Phone },
     ],
   },
 ];

@@ -37,7 +37,9 @@ import { BarcodePrintPage } from './pages/inventory/BarcodePrintPage';
 import { ScanPage } from './pages/ScanPage';
 import { TasksPage } from './pages/TasksPage';
 import { NotFoundPage } from './pages/NotFoundPage';
-import { ProspectsPage } from './pages/crm/ProspectsPage';
+import { PipelinePage } from './pages/crm/PipelinePage';
+import { ContactsPage } from './pages/crm/ContactsPage';
+import { ContactDetailPage } from './pages/crm/ContactDetailPage';
 import { CallReportsPage } from './pages/crm/CallReportsPage';
 import { ShippingPage } from './pages/shipping/ShippingPage';
 
@@ -122,8 +124,10 @@ export default function App() {
 
           {/* CRM */}
           <Route path="crm">
-            <Route index element={<ProspectsPage />} />
-            <Route path="prospects" element={<ProspectsPage />} />
+            <Route index element={<PipelinePage />} />
+            <Route path="prospects" element={<PipelinePage />} />
+            <Route path="contacts" element={<ContactsPage />} />
+            <Route path="contacts/:type/:id" element={<ContactDetailPage />} />
             <Route path="call-reports" element={<CallReportsPage />} />
           </Route>
 
