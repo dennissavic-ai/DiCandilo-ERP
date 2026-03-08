@@ -254,8 +254,9 @@ model Supplier {
   createdBy       String?
   updatedBy       String?
 
-  purchaseOrders  PurchaseOrder[]
-  invoices        SupplierInvoice[]
+  purchaseOrders       PurchaseOrder[]
+  invoices             SupplierInvoice[]
+  autoFulfillmentRules AutoFulfillmentRule[]
 
   @@unique([companyId, code])
   @@index([companyId])
@@ -328,14 +329,15 @@ model Product {
   createdBy          String?
   updatedBy          String?
 
-  category           ProductCategory? @relation(fields: [categoryId], references: [id])
-  inventoryItems     InventoryItem[]
-  purchaseOrderLines PurchaseOrderLine[]
-  salesOrderLines    SalesOrderLine[]
-  salesQuoteLines    SalesQuoteLineItem[]
-  pricingRules       PricingRule[]
-  barcodes           Barcode[]
-  workOrderLines     WorkOrderLine[]
+  category             ProductCategory?    @relation(fields: [categoryId], references: [id])
+  inventoryItems       InventoryItem[]
+  purchaseOrderLines   PurchaseOrderLine[]
+  salesOrderLines      SalesOrderLine[]
+  salesQuoteLines      SalesQuoteLineItem[]
+  pricingRules         PricingRule[]
+  barcodes             Barcode[]
+  workOrderLines       WorkOrderLine[]
+  autoFulfillmentRules AutoFulfillmentRule[]
 
   @@unique([companyId, code])
   @@index([companyId])
@@ -1549,4 +1551,36 @@ enum SecuritySeverity {
   INFO
   WARNING
   CRITICAL
+}
+
+// ─── AUTO FULFILLMENT ─────────────────────────────────────────────────────────
+
+/// One rule per product per company. When qtyAvailable < reorderPoint the
+/// scheduler automatically creates a draft PO for reorderQty units from the
+/// configured supplier. The draft PO is tagged [AUTO-FULFILLMENT] in notes and
+/// requires human review before being submitted/approved.
+model AutoFulfillmentRule {
+  id              String    @id @default(uuid())
+  companyId       String
+  productId       String
+  supplierId      String
+  isActive        Boolean   @default(true)
+  reorderPoint    Decimal   @db.Decimal(18, 4) // trigger qty (in product UOM)
+  reorderQty      Decimal   @db.Decimal(18, 4) // how much to order
+  unitPrice       BigInt    @default(0)         // expected unit price (cents)
+  leadTimeDays    Int?                           // informational
+  notes           String?
+  lastTriggeredAt DateTime?
+  deletedAt       DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  createdBy       String?
+  updatedBy       String?
+
+  product         Product  @relation(fields: [productId], references: [id])
+  supplier        Supplier @relation(fields: [supplierId], references: [id])
+
+  @@unique([companyId, productId])
+  @@index([companyId])
+  @@index([isActive])
 }

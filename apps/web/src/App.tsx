@@ -11,6 +11,7 @@ import { StockAdjustPage } from './pages/inventory/StockAdjustPage';
 import { ReceiveStockPage } from './pages/inventory/ReceiveStockPage';
 import { StockTransferPage } from './pages/inventory/StockTransferPage';
 import { MtrPage } from './pages/inventory/MtrPage';
+import { AutoFulfillmentPage } from './pages/inventory/AutoFulfillmentPage';
 import { CustomersPage } from './pages/sales/CustomersPage';
 import { SalesOrdersPage } from './pages/sales/SalesOrdersPage';
 import { SalesOrderDetailPage } from './pages/sales/SalesOrderDetailPage';
@@ -75,6 +76,7 @@ export default function App() {
             <Route path="receive" element={<ReceiveStockPage />} />
             <Route path="transfer" element={<StockTransferPage />} />
             <Route path="mtr" element={<MtrPage />} />
+            <Route path="auto-fulfillment" element={<AutoFulfillmentPage />} />
           </Route>
 
           {/* Sales */}

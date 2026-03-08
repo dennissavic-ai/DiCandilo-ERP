@@ -228,6 +228,16 @@ export const tasksApi = {
   addComment: (id: string, body: string) => api.post(`/tasks/${id}/comments`, { body }),
 };
 
+// Auto Fulfillment
+export const fulfillmentApi = {
+  listRules: () => api.get<AutoFulfillmentRule[]>('/inventory/fulfillment/rules'),
+  createRule: (data: object) => api.post<AutoFulfillmentRule>('/inventory/fulfillment/rules', data),
+  updateRule: (id: string, data: object) => api.put<AutoFulfillmentRule>(`/inventory/fulfillment/rules/${id}`, data),
+  deleteRule: (id: string) => api.delete(`/inventory/fulfillment/rules/${id}`),
+  runCheck: () => api.post<FulfillmentCheckResult>('/inventory/fulfillment/check'),
+  listRecentPos: (params?: object) => api.get<PaginatedResponse<PurchaseOrder>>('/inventory/fulfillment/recent-pos', { params }),
+};
+
 // Automation
 export const automationApi = {
   listRules: () => api.get('/automation/rules'),
@@ -408,4 +418,29 @@ export interface EmailLog {
   status: string;
   errorMsg?: string;
   sentAt: string;
+}
+
+export interface AutoFulfillmentRule {
+  id: string;
+  companyId: string;
+  productId: string;
+  supplierId: string;
+  isActive: boolean;
+  reorderPoint: string;
+  reorderQty: string;
+  unitPrice: number;      // cents
+  leadTimeDays?: number;
+  notes?: string;
+  lastTriggeredAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  product: { id: string; code: string; description: string; uom: string };
+  supplier: { id: string; code: string; name: string };
+}
+
+export interface FulfillmentCheckResult {
+  checked: number;
+  posCreated: number;
+  skipped: number;
+  details: Array<{ productCode: string; poNumber: string; supplierId: string }>;
 }

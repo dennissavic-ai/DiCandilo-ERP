@@ -28,6 +28,8 @@ import { websocketPlugin } from './websocket/ws.plugin';
 import { automationRoutes } from './modules/automation/automation.routes';
 import { startAutomationScheduler } from './modules/automation/automation.scheduler';
 import { complianceRoutes } from './modules/compliance/compliance.routes';
+import { fulfillmentRoutes } from './modules/fulfillment/fulfillment.routes';
+import { startFulfillmentScheduler } from './modules/fulfillment/fulfillment.scheduler';
 
 const app = Fastify({
   logger: {
@@ -166,6 +168,7 @@ async function buildApp() {
   await app.register(nestingRoutes, { prefix: `${prefix}/nesting` });
   await app.register(automationRoutes, { prefix: `${prefix}/automation` });
   await app.register(complianceRoutes, { prefix: `${prefix}/compliance` });
+  await app.register(fulfillmentRoutes, { prefix: `${prefix}/inventory/fulfillment` });
   await app.register(websocketPlugin, { prefix: `${prefix}/ws` });
 
   // ── Graceful shutdown ─────────────────────────────────────────────────────
@@ -206,6 +209,7 @@ async function main() {
     const server = await buildApp();
     await prisma.$connect();
     startAutomationScheduler(server);
+    startFulfillmentScheduler(server);
     startTokenCleanupScheduler();
     await server.listen({ port: env.PORT, host: env.HOST });
   } catch (err) {

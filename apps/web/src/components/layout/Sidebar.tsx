@@ -4,7 +4,7 @@ import {
   FileText, Wrench, DollarSign, Users, ClipboardList, QrCode,
   Factory, ChevronDown, Layers, TrendingUp, Settings,
   BookOpen, Gauge, Mail, ArrowLeftRight, FileCheck,
-  Tag, Globe, Phone,
+  Tag, Globe, Phone, Zap,
 } from 'lucide-react';
 import { useState } from 'react';
 import clsx from 'clsx';
@@ -35,7 +35,8 @@ const NAV_OPS: NavItem[] = [
       { label: 'Receive Stock',  to: '/inventory/receive',        icon: Truck },
       { label: 'Adjust Stock',   to: '/inventory/adjust',         icon: Settings },
       { label: 'Transfer Stock', to: '/inventory/transfer',       icon: ArrowLeftRight },
-      { label: 'Mill Test Reports', to: '/inventory/mtr',         icon: FileCheck },
+      { label: 'Mill Test Reports', to: '/inventory/mtr',              icon: FileCheck },
+      { label: 'Auto Fulfillment',  to: '/inventory/auto-fulfillment', icon: Zap },
     ],
   },
   {
