@@ -42,11 +42,9 @@ const NAV_OPS: NavItem[] = [
   {
     label: 'Sales', icon: ShoppingCart,
     children: [
-      { label: 'Sales Orders',   to: '/sales/orders',      icon: FileText },
-      { label: 'Quotes',         to: '/sales/quotes',      icon: ClipboardList },
-      { label: 'Customers',      to: '/sales/customers',   icon: Users },
-      { label: 'Price Books',    to: '/sales/price-books', icon: Tag },
-      { label: 'Customer Portal',to: '/sales/portal',      icon: Globe },
+      { label: 'Quotes',      to: '/sales/quotes',      icon: ClipboardList },
+      { label: 'Sales Orders',to: '/sales/orders',      icon: FileText },
+      { label: 'Price Books', to: '/sales/price-books', icon: Tag },
     ],
   },
   {
@@ -59,12 +57,13 @@ const NAV_OPS: NavItem[] = [
   {
     label: 'Orders', icon: Wrench,
     children: [
-      { label: 'Dashboard',     to: '/processing/dashboard',    icon: Activity },
-      { label: 'Kanban Board',  to: '/processing/kanban',       icon: Kanban },
-      { label: 'Work Orders',   to: '/processing/work-orders',  icon: ClipboardList },
-      { label: 'Time Tracking', to: '/processing/time-tracking', icon: Clock },
-      { label: 'Schedule',      to: '/processing/schedule',     icon: BarChart3 },
-      { label: 'Nesting',       to: '/processing/nesting',      icon: Layers },
+      { label: 'Dashboard',         to: '/processing/dashboard',    icon: Activity },
+      { label: 'Work Orders',       to: '/processing/work-orders',  icon: ClipboardList },
+      { label: 'Kanban Board',      to: '/processing/kanban',       icon: Kanban },
+      { label: 'Time Tracking',     to: '/processing/time-tracking', icon: Clock },
+      { label: 'Scheduling',        to: '/processing/schedule',     icon: BarChart3 },
+      { label: 'Nesting',           to: '/processing/nesting',      icon: Layers },
+      { label: 'Shipping / Dispatch', to: '/shipping',              icon: Truck },
     ],
   },
   {
@@ -79,13 +78,11 @@ const NAV_OPS: NavItem[] = [
     ],
   },
   {
-    label: 'Shipping', icon: Truck, to: '/shipping', children: undefined,
-  } as NavItem,
-  {
     label: 'CRM', icon: Phone,
     children: [
       { label: 'Pipeline',     to: '/crm/prospects',    icon: TrendingUp },
       { label: 'Contacts',     to: '/crm/contacts',     icon: Users },
+      { label: 'Customers',    to: '/sales/customers',  icon: Users },
       { label: 'Call Reports', to: '/crm/call-reports', icon: Phone },
     ],
   },
