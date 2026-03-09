@@ -186,6 +186,8 @@ model Customer {
   taxExemptNumber   String?
   notes             String?
   isActive          Boolean   @default(true)
+  xeroContactId     String?
+  shopifyCustomerId String?
   deletedAt         DateTime?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
@@ -202,6 +204,8 @@ model Customer {
 
   @@unique([companyId, code])
   @@index([companyId])
+  @@index([companyId, xeroContactId])
+  @@index([companyId, shopifyCustomerId])
 }
 
 model CustomerGroup {
@@ -1658,4 +1662,48 @@ model AutoFulfillmentRule {
   @@unique([companyId, productId])
   @@index([companyId])
   @@index([isActive])
+}
+
+// ─── INTEGRATIONS ────────────────────────────────────────────────────────────
+
+/// Stores per-company, per-provider integration credentials and configuration.
+/// Config JSON holds provider-specific fields (tokens, keys, shop domain, etc.)
+model IntegrationCredential {
+  id          String    @id @default(uuid())
+  companyId   String
+  provider    String    // 'xero' | 'shopify'
+  config      Json      @default("{}")
+  isActive    Boolean   @default(true)
+  lastSyncAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  updatedBy   String?
+
+  syncLogs    SyncLog[]
+
+  @@unique([companyId, provider])
+  @@index([companyId])
+}
+
+/// Records each sync run — status, counts, and per-record errors.
+model SyncLog {
+  id             String    @id @default(uuid())
+  companyId      String
+  credentialId   String
+  provider       String
+  direction      String    // 'IMPORT'
+  entityType     String    // 'customer'
+  status         String    // 'RUNNING' | 'SUCCESS' | 'FAILED' | 'PARTIAL'
+  totalRecords   Int       @default(0)
+  syncedRecords  Int       @default(0)
+  errorCount     Int       @default(0)
+  errors         Json      @default("[]")
+  startedAt      DateTime  @default(now())
+  completedAt    DateTime?
+  triggeredBy    String?
+
+  credential     IntegrationCredential @relation(fields: [credentialId], references: [id])
+
+  @@index([companyId, provider])
+  @@index([credentialId])
 }

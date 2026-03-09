@@ -4,7 +4,7 @@ import {
   FileText, Wrench, DollarSign, Users, ClipboardList, QrCode,
   Factory, ChevronDown, Layers, TrendingUp, Settings,
   BookOpen, Gauge, Mail, ArrowLeftRight, FileCheck,
-  Tag, Globe, Phone, Zap,
+  Tag, Globe, Phone, Zap, Plug,
 } from 'lucide-react';
 import { useState } from 'react';
 import clsx from 'clsx';
@@ -57,7 +57,7 @@ const NAV_OPS: NavItem[] = [
     ],
   },
   {
-    label: 'Processing', icon: Wrench,
+    label: 'Orders', icon: Wrench,
     children: [
       { label: 'Work Orders', to: '/processing/work-orders', icon: ClipboardList },
       { label: 'Schedule',    to: '/processing/schedule',    icon: BarChart3 },
@@ -92,9 +92,10 @@ const NAV_ANALYTICS: NavItem[] = [
 ];
 
 const NAV_ADMIN: NavItem[] = [
-  { label: 'Scan Barcode', to: '/scan',              icon: QrCode },
-  { label: 'Automation',   to: '/admin/automation',  icon: Mail },
-  { label: 'Users',        to: '/admin/users',       icon: Users },
+  { label: 'Scan Barcode',  to: '/scan',                   icon: QrCode },
+  { label: 'Automation',    to: '/admin/automation',        icon: Mail },
+  { label: 'Integrations',  to: '/admin/integrations',      icon: Plug },
+  { label: 'Users',         to: '/admin/users',             icon: Users },
 ];
 
 function useGroupActive(children: NavChild[]) {

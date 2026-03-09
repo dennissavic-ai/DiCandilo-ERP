@@ -33,6 +33,7 @@ import { AccountsPayablePage } from './pages/accounting/AccountsPayablePage';
 import { ReportingPage } from './pages/ReportingPage';
 import { UsersPage } from './pages/admin/UsersPage';
 import { AutomationPage } from './pages/admin/AutomationPage';
+import { IntegrationsPage } from './pages/admin/IntegrationsPage';
 import { BarcodePrintPage } from './pages/inventory/BarcodePrintPage';
 import { ScanPage } from './pages/ScanPage';
 import { TasksPage } from './pages/TasksPage';
@@ -140,6 +141,7 @@ export default function App() {
           {/* Admin */}
           <Route path="admin/users" element={<UsersPage />} />
           <Route path="admin/automation" element={<AutomationPage />} />
+          <Route path="admin/integrations" element={<IntegrationsPage />} />
 
           {/* 404 */}
           <Route path="*" element={<NotFoundPage />} />

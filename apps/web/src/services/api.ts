@@ -258,6 +258,17 @@ export const crmApi = {
   createCallReport: (data: object)    => api.post('/crm/call-reports', data),
 };
 
+// Integrations
+export const integrationApi = {
+  listConfigs:    ()                          => api.get('/integrations/config'),
+  getConfig:      (provider: string)          => api.get(`/integrations/config/${provider}`),
+  saveConfig:     (provider: string, data: object) => api.put(`/integrations/config/${provider}`, data),
+  disconnect:     (provider: string)          => api.delete(`/integrations/config/${provider}`),
+  runSync:        (provider: string)          => api.post(`/integrations/sync/${provider}`),
+  listSyncLogs:   (params?: object)           => api.get('/integrations/sync/logs', { params }),
+  getSyncLog:     (id: string)                => api.get(`/integrations/sync/logs/${id}`),
+};
+
 // Automation
 export const automationApi = {
   listRules: () => api.get('/automation/rules'),
@@ -475,4 +486,28 @@ export interface PipelineStage {
   isLost: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface IntegrationCredential {
+  id: string;
+  provider: string;
+  isActive: boolean;
+  lastSyncAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SyncLog {
+  id: string;
+  provider: string;
+  direction: string;
+  entityType: string;
+  status: string;            // 'RUNNING' | 'SUCCESS' | 'FAILED' | 'PARTIAL'
+  totalRecords: number;
+  syncedRecords: number;
+  errorCount: number;
+  errors?: { id?: string; name?: string; error: string }[];
+  startedAt: string;
+  completedAt?: string;
+  triggeredBy?: string;
 }

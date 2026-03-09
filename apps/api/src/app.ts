@@ -31,6 +31,7 @@ import { complianceRoutes } from './modules/compliance/compliance.routes';
 import { fulfillmentRoutes } from './modules/fulfillment/fulfillment.routes';
 import { startFulfillmentScheduler } from './modules/fulfillment/fulfillment.scheduler';
 import { crmRoutes } from './modules/crm/crm.routes';
+import { integrationRoutes } from './modules/integrations/integrations.routes';
 
 const app = Fastify({
   logger: {
@@ -171,6 +172,7 @@ async function buildApp() {
   await app.register(complianceRoutes, { prefix: `${prefix}/compliance` });
   await app.register(fulfillmentRoutes, { prefix: `${prefix}/inventory/fulfillment` });
   await app.register(crmRoutes,         { prefix: `${prefix}/crm` });
+  await app.register(integrationRoutes, { prefix: `${prefix}/integrations` });
   await app.register(websocketPlugin,   { prefix: `${prefix}/ws` });
 
   // ── Graceful shutdown ─────────────────────────────────────────────────────
