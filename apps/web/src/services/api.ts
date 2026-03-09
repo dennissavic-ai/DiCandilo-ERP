@@ -238,6 +238,26 @@ export const fulfillmentApi = {
   listRecentPos: (params?: object) => api.get<PaginatedResponse<PurchaseOrder>>('/inventory/fulfillment/recent-pos', { params }),
 };
 
+// CRM
+export const crmApi = {
+  // Pipeline stages
+  listStages:  () => api.get<PipelineStage[]>('/crm/pipeline-stages'),
+  saveStages:  (stages: Omit<PipelineStage, 'id' | 'companyId' | 'createdAt' | 'updatedAt'>[]) =>
+    api.put<PipelineStage[]>('/crm/pipeline-stages', { stages }),
+
+  // Prospects
+  listProspects:  (params?: object) => api.get('/crm/prospects', { params }),
+  getProspect:    (id: string)      => api.get(`/crm/prospects/${id}`),
+  createProspect: (data: object)    => api.post('/crm/prospects', data),
+  updateProspect: (id: string, data: object) => api.put(`/crm/prospects/${id}`, data),
+  changeStage:    (id: string, stage: string) => api.patch(`/crm/prospects/${id}/stage`, { stage }),
+  deleteProspect: (id: string)      => api.delete(`/crm/prospects/${id}`),
+
+  // Call reports
+  listCallReports:  (params?: object) => api.get('/crm/call-reports', { params }),
+  createCallReport: (data: object)    => api.post('/crm/call-reports', data),
+};
+
 // Automation
 export const automationApi = {
   listRules: () => api.get('/automation/rules'),
@@ -443,4 +463,16 @@ export interface FulfillmentCheckResult {
   posCreated: number;
   skipped: number;
   details: Array<{ productCode: string; poNumber: string; supplierId: string }>;
+}
+
+export interface PipelineStage {
+  id: string;
+  companyId: string;
+  name: string;
+  color: string;
+  order: number;
+  isWon: boolean;
+  isLost: boolean;
+  createdAt: string;
+  updatedAt: string;
 }

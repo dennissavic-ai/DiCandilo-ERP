@@ -30,6 +30,7 @@ import { startAutomationScheduler } from './modules/automation/automation.schedu
 import { complianceRoutes } from './modules/compliance/compliance.routes';
 import { fulfillmentRoutes } from './modules/fulfillment/fulfillment.routes';
 import { startFulfillmentScheduler } from './modules/fulfillment/fulfillment.scheduler';
+import { crmRoutes } from './modules/crm/crm.routes';
 
 const app = Fastify({
   logger: {
@@ -169,7 +170,8 @@ async function buildApp() {
   await app.register(automationRoutes, { prefix: `${prefix}/automation` });
   await app.register(complianceRoutes, { prefix: `${prefix}/compliance` });
   await app.register(fulfillmentRoutes, { prefix: `${prefix}/inventory/fulfillment` });
-  await app.register(websocketPlugin, { prefix: `${prefix}/ws` });
+  await app.register(crmRoutes,         { prefix: `${prefix}/crm` });
+  await app.register(websocketPlugin,   { prefix: `${prefix}/ws` });
 
   // ── Graceful shutdown ─────────────────────────────────────────────────────
   const signals: NodeJS.Signals[] = ['SIGINT', 'SIGTERM'];

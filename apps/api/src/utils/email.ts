@@ -303,6 +303,81 @@ export function quoteExpiryWarningTemplate(quote: QuoteExpiryWarningTemplateData
   return emailLayout(body);
 }
 
+// ─── Template: Prospect Stage Change ─────────────────────────────────────────
+
+export interface ProspectStageTemplateData {
+  stage: string;
+  contactName: string;
+  companyName: string;
+}
+
+const STAGE_MESSAGES: Record<string, { heading: string; body: string; color: string }> = {
+  CONTACTED: {
+    heading: "We've been in touch",
+    body:    "Thank you for your interest. One of our team members has reached out and we look forward to learning more about your requirements.",
+    color:   '#2563EB',
+  },
+  QUALIFIED: {
+    heading: 'Your enquiry is progressing',
+    body:    "We've reviewed your requirements and are pleased to confirm that we can meet your needs. Our team will be in touch shortly to discuss next steps.",
+    color:   '#0891b2',
+  },
+  PROPOSAL: {
+    heading: 'Your proposal is ready',
+    body:    "We've prepared a proposal tailored to your requirements. Please review the details at your earliest convenience and don't hesitate to reach out with any questions.",
+    color:   '#d97706',
+  },
+  NEGOTIATION: {
+    heading: "We're finalising the details",
+    body:    "Thank you for your continued interest. We're in the final stages of reviewing terms and will be in touch shortly to confirm the details.",
+    color:   '#ea580c',
+  },
+  WON: {
+    heading: 'Welcome aboard!',
+    body:    "We're delighted to have your business. Our team will be in touch to confirm the next steps and ensure everything runs smoothly.",
+    color:   '#16a34a',
+  },
+  LOST: {
+    heading: 'Thank you for considering us',
+    body:    "We appreciate the time you took to explore working with us. Should your requirements change in the future, we'd love the opportunity to work together.",
+    color:   '#dc2626',
+  },
+};
+
+export function prospectStageTemplate(data: ProspectStageTemplateData): string {
+  const meta = STAGE_MESSAGES[data.stage.toUpperCase()] ?? {
+    heading: `Your deal is now in ${data.stage}`,
+    body:    'Your enquiry has been updated. Our team will be in touch with further details.',
+    color:   '#6b7280',
+  };
+
+  const body = `
+    <p style="margin:0 0 8px;font-size:15px;color:#475569;">
+      Dear <strong>${escapeHtml(data.contactName)}</strong>,
+    </p>
+    <p style="margin:0 0 24px;font-size:15px;color:#475569;">
+      We have an update regarding your enquiry with <strong>Di Candilo Steel City ERP</strong>.
+    </p>
+
+    <div style="background:#f8fafc;border-left:4px solid ${meta.color};border-radius:4px;padding:20px 24px;margin-bottom:24px;">
+      <p style="margin:0 0 6px;font-size:12px;color:#64748b;text-transform:uppercase;letter-spacing:1px;font-weight:600;">
+        Status Update
+      </p>
+      <p style="margin:0 0 12px;font-size:22px;font-weight:700;color:#1e293b;">
+        ${escapeHtml(meta.heading)}
+      </p>
+      <p style="margin:0;font-size:14px;color:#475569;line-height:1.6;">
+        ${meta.body}
+      </p>
+    </div>
+
+    <p style="margin:0;font-size:14px;color:#64748b;">
+      If you have any questions or would like to discuss further, please don't hesitate to contact our team.
+    </p>`;
+
+  return emailLayout(body);
+}
+
 // ─── Internal Utility ─────────────────────────────────────────────────────────
 
 function escapeHtml(str: string): string {

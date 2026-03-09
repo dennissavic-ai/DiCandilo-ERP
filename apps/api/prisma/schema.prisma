@@ -132,6 +132,7 @@ model User {
   auditLogs              AuditLog[]
   tasks                  Task[]                @relation("TaskAssignee")
   createdTasks           Task[]                @relation("TaskCreator")
+  callReports            CallReport[]
 }
 
 model RefreshToken {
@@ -197,6 +198,7 @@ model Customer {
   invoices          Invoice[]
   portalUsers       CustomerPortalUser[]
   pricingRules      PricingRule[]
+  callReports       CallReport[]
 
   @@unique([companyId, code])
   @@index([companyId])
@@ -1551,6 +1553,79 @@ enum SecuritySeverity {
   INFO
   WARNING
   CRITICAL
+}
+
+// ─── CRM ──────────────────────────────────────────────────────────────────────
+
+/// A prospect / deal in the sales pipeline.
+model Prospect {
+  id              String    @id @default(uuid())
+  companyId       String
+  companyName     String
+  contactName     String?
+  email           String?
+  phone           String?
+  stage           String    @default("LEAD")
+  industry        String?
+  estimatedValue  BigInt?             // cents
+  probability     Int?      @default(50)
+  nextFollowUp    DateTime?
+  notes           String?
+  deletedAt       DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  createdBy       String?
+  updatedBy       String?
+
+  callReports     CallReport[]
+
+  @@index([companyId])
+  @@index([companyId, stage])
+}
+
+/// A logged interaction — call, visit, email, meeting, or demo.
+model CallReport {
+  id              String    @id @default(uuid())
+  companyId       String
+  prospectId      String?
+  customerId      String?
+  userId          String?
+  type            String              // CALL | VISIT | EMAIL | MEETING | DEMO
+  callDate        DateTime
+  durationMinutes Int?
+  subject         String
+  notes           String?
+  outcome         String              // FOLLOW_UP | QUOTE_REQUESTED | ORDER_PLACED | NOT_INTERESTED | CALLBACK | NO_ANSWER
+  followUpDate    DateTime?
+  deletedAt       DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  createdBy       String?
+
+  prospect        Prospect? @relation(fields: [prospectId], references: [id])
+  customer        Customer? @relation(fields: [customerId], references: [id])
+  user            User?     @relation(fields: [userId], references: [id])
+
+  @@index([companyId])
+  @@index([prospectId])
+  @@index([customerId])
+}
+
+/// Company-specific pipeline stage configuration.
+/// Defaults are seeded on first access.
+model PipelineStage {
+  id          String   @id @default(uuid())
+  companyId   String
+  name        String              // Display name, e.g. "Qualified"
+  color       String   @default("gray") // gray|blue|teal|amber|orange|green|red|violet
+  order       Int
+  isWon       Boolean  @default(false)
+  isLost      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([companyId, name])
+  @@index([companyId, order])
 }
 
 // ─── AUTO FULFILLMENT ─────────────────────────────────────────────────────────
