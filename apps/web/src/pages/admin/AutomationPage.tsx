@@ -179,7 +179,7 @@ function RulesGroup({
   savingTrigger,
 }: {
   group: string;
-  icon: React.ComponentType<{ size?: number; className?: string }>;
+  icon: React.ComponentType<{ size?: number | string; className?: string }>;
   metas: TriggerMeta[];
   rulesByTrigger: Map<string, EmailAutomationRule>;
   onSave: (trigger: string, data: { isEnabled: boolean; subject: string; delayHours: number }) => void;
