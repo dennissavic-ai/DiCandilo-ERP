@@ -1,5 +1,6 @@
 import { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
+import { prisma } from '../../config/database';
 import { InventoryService } from './inventory.service';
 import { authenticate, requirePermission } from '../../middleware/auth.middleware';
 import { writeAuditLog } from '../../middleware/audit.middleware';
