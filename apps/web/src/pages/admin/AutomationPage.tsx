@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import {
-  Mail, Bell, CheckCircle, XCircle, Send, Settings2, Clock, ChevronRight,
+  Mail, Bell, CheckCircle, XCircle, Send, Settings2, Clock, ChevronRight, GitBranch,
 } from 'lucide-react';
-import { automationApi, EmailAutomationRule, EmailLog } from '../../services/api';
+import { automationApi, crmApi, EmailAutomationRule, EmailLog, PipelineStage } from '../../services/api';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { DataTable, Column } from '../../components/ui/DataTable';
 
@@ -169,10 +169,59 @@ function RuleRow({
 
 // ── Rules Tab ─────────────────────────────────────────────────────────────────
 
+function RulesGroup({
+  group,
+  icon: Icon,
+  metas,
+  rulesByTrigger,
+  onSave,
+  isSaving,
+  savingTrigger,
+}: {
+  group: string;
+  icon: React.ComponentType<{ size?: number; className?: string }>;
+  metas: TriggerMeta[];
+  rulesByTrigger: Map<string, EmailAutomationRule>;
+  onSave: (trigger: string, data: { isEnabled: boolean; subject: string; delayHours: number }) => void;
+  isSaving: boolean;
+  savingTrigger?: string;
+}) {
+  return (
+    <div className="card">
+      <div className="card-header flex items-center gap-2">
+        <Icon size={15} className="text-steel-500" />
+        <h3 className="font-semibold">{group}</h3>
+      </div>
+      <div className="card-body">
+        <div className="text-xs text-steel-400 flex gap-4 pb-2 border-b border-steel-100 font-medium uppercase tracking-wide">
+          <span className="min-w-[220px]">Trigger / Delay</span>
+          <span className="flex-1">Email Subject</span>
+          <span className="w-28">Delay (h)</span>
+          <span className="w-20 text-right">Action</span>
+        </div>
+        {metas.map((meta) => (
+          <RuleRow
+            key={meta.trigger}
+            meta={meta}
+            rule={rulesByTrigger.get(meta.trigger)}
+            onSave={onSave}
+            isSaving={isSaving && savingTrigger === meta.trigger}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function RulesTab() {
   const { data: rulesData, isLoading: rulesLoading } = useQuery({
     queryKey: ['automation-rules'],
     queryFn: () => automationApi.listRules().then((r) => r.data as EmailAutomationRule[]),
+  });
+
+  const { data: stagesData, isLoading: stagesLoading } = useQuery({
+    queryKey: ['pipeline-stages'],
+    queryFn: () => crmApi.listStages().then((r) => r.data as PipelineStage[]),
   });
 
   const { mutate: saveRule, isPending: isSaving, variables: savingVars } = useMutation({
@@ -201,43 +250,50 @@ function RulesTab() {
     (rulesData ?? []).map((r) => [r.trigger, r])
   );
 
-  const groups = Array.from(new Set(TRIGGER_META.map((m) => m.group)));
+  // Build CRM stage trigger metas dynamically from pipeline stages
+  const crmStageMetas: TriggerMeta[] = (stagesData ?? [])
+    .filter((s) => !s.isLost) // LOST stage typically doesn't need a customer email
+    .map((s) => ({
+      trigger: `CRM_STAGE_${s.name.toUpperCase().replace(/\s+/g, '_')}`,
+      label: `Stage → ${s.name}`,
+      group: 'Pipeline Stage Notifications',
+    }));
+
+  const soGroups = Array.from(new Set(TRIGGER_META.map((m) => m.group)));
+  const isLoading = rulesLoading || stagesLoading;
 
   return (
     <div className="space-y-5">
-      {rulesLoading ? (
+      {isLoading ? (
         <div className="flex items-center justify-center h-40">
           <div className="w-6 h-6 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
         </div>
       ) : (
-        groups.map((group) => {
-          const groupMeta = TRIGGER_META.filter((m) => m.group === group);
-          return (
-            <div key={group} className="card">
-              <div className="card-header flex items-center gap-2">
-                <Bell size={15} className="text-steel-500" />
-                <h3 className="font-semibold">{group}</h3>
-              </div>
-              <div className="card-body">
-                <div className="text-xs text-steel-400 flex gap-4 pb-2 border-b border-steel-100 font-medium uppercase tracking-wide">
-                  <span className="min-w-[220px]">Trigger / Delay</span>
-                  <span className="flex-1">Email Subject</span>
-                  <span className="w-28">Delay (h)</span>
-                  <span className="w-20 text-right">Action</span>
-                </div>
-                {groupMeta.map((meta) => (
-                  <RuleRow
-                    key={meta.trigger}
-                    meta={meta}
-                    rule={rulesByTrigger.get(meta.trigger)}
-                    onSave={(trigger, data) => saveRule({ trigger, data })}
-                    isSaving={isSaving && savingVars?.trigger === meta.trigger}
-                  />
-                ))}
-              </div>
-            </div>
-          );
-        })
+        <>
+        {soGroups.map((group) => (
+          <RulesGroup
+            key={group}
+            group={group}
+            icon={Bell}
+            metas={TRIGGER_META.filter((m) => m.group === group)}
+            rulesByTrigger={rulesByTrigger}
+            onSave={(trigger, data) => saveRule({ trigger, data })}
+            isSaving={isSaving}
+            savingTrigger={savingVars?.trigger}
+          />
+        ))}
+        {crmStageMetas.length > 0 && (
+          <RulesGroup
+            group="Pipeline Stage Notifications"
+            icon={GitBranch}
+            metas={crmStageMetas}
+            rulesByTrigger={rulesByTrigger}
+            onSave={(trigger, data) => saveRule({ trigger, data })}
+            isSaving={isSaving}
+            savingTrigger={savingVars?.trigger}
+          />
+        )}
+        </>
       )}
 
       {/* Test Email */}
@@ -319,7 +375,18 @@ function EmailLogTab() {
       }),
   });
 
-  const TRIGGER_LABEL = new Map(TRIGGER_META.map((m) => [m.trigger, m.label]));
+  const { data: stagesData } = useQuery({
+    queryKey: ['pipeline-stages'],
+    queryFn: () => crmApi.listStages().then((r) => r.data as PipelineStage[]),
+  });
+
+  const crmStageMetas: TriggerMeta[] = (stagesData ?? []).map((s) => ({
+    trigger: `CRM_STAGE_${s.name.toUpperCase().replace(/\s+/g, '_')}`,
+    label: `Stage → ${s.name}`,
+    group: 'Pipeline Stage Notifications',
+  }));
+
+  const TRIGGER_LABEL = new Map([...TRIGGER_META, ...crmStageMetas].map((m) => [m.trigger, m.label]));
 
   const columns: Column<Record<string, unknown>>[] = [
     {

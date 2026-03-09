@@ -4,7 +4,7 @@ import {
   FileText, Wrench, DollarSign, Users, ClipboardList, QrCode,
   Factory, ChevronDown, Layers, TrendingUp, Settings,
   BookOpen, Gauge, Mail, ArrowLeftRight, FileCheck,
-  Tag, Globe, Phone,
+  Tag, Globe, Phone, Zap, Plug, Kanban, Clock, Activity,
 } from 'lucide-react';
 import { useState } from 'react';
 import clsx from 'clsx';
@@ -30,22 +30,21 @@ const NAV_OPS: NavItem[] = [
   {
     label: 'Inventory', icon: Package,
     children: [
-      { label: 'Stock on Hand',  to: '/inventory',               icon: Layers },
-      { label: 'Products',       to: '/inventory/products',       icon: Package },
-      { label: 'Receive Stock',  to: '/inventory/receive',        icon: Truck },
-      { label: 'Adjust Stock',   to: '/inventory/adjust',         icon: Settings },
-      { label: 'Transfer Stock', to: '/inventory/transfer',       icon: ArrowLeftRight },
-      { label: 'Mill Test Reports', to: '/inventory/mtr',         icon: FileCheck },
+      { label: 'Dashboard',        to: '/inventory/dashboard',        icon: Activity },
+      { label: 'Products',         to: '/inventory/products',         icon: Package },
+      { label: 'Stock on Hand',    to: '/inventory',                  icon: Layers },
+      { label: 'Receive Stock',    to: '/inventory/receive',          icon: Truck },
+      { label: 'Transfer Stock',   to: '/inventory/transfer',         icon: ArrowLeftRight },
+      { label: 'Auto Fulfillment', to: '/inventory/auto-fulfillment', icon: Zap },
+      { label: 'Adjust Stock',     to: '/inventory/adjust',           icon: Settings },
     ],
   },
   {
     label: 'Sales', icon: ShoppingCart,
     children: [
-      { label: 'Sales Orders',   to: '/sales/orders',      icon: FileText },
-      { label: 'Quotes',         to: '/sales/quotes',      icon: ClipboardList },
-      { label: 'Customers',      to: '/sales/customers',   icon: Users },
-      { label: 'Price Books',    to: '/sales/price-books', icon: Tag },
-      { label: 'Customer Portal',to: '/sales/portal',      icon: Globe },
+      { label: 'Quotes',      to: '/sales/quotes',      icon: ClipboardList },
+      { label: 'Sales Orders',to: '/sales/orders',      icon: FileText },
+      { label: 'Price Books', to: '/sales/price-books', icon: Tag },
     ],
   },
   {
@@ -56,30 +55,35 @@ const NAV_OPS: NavItem[] = [
     ],
   },
   {
-    label: 'Processing', icon: Wrench,
+    label: 'Orders', icon: Wrench,
     children: [
-      { label: 'Work Orders', to: '/processing/work-orders', icon: ClipboardList },
-      { label: 'Schedule',    to: '/processing/schedule',    icon: BarChart3 },
-      { label: 'Nesting',     to: '/processing/nesting',     icon: Layers },
+      { label: 'Dashboard',         to: '/processing/dashboard',    icon: Activity },
+      { label: 'Work Orders',       to: '/processing/work-orders',  icon: ClipboardList },
+      { label: 'Kanban Board',      to: '/processing/kanban',       icon: Kanban },
+      { label: 'Time Tracking',     to: '/processing/time-tracking', icon: Clock },
+      { label: 'Scheduling',        to: '/processing/schedule',     icon: BarChart3 },
+      { label: 'Nesting',           to: '/processing/nesting',      icon: Layers },
+      { label: 'Shipping / Dispatch', to: '/shipping',              icon: Truck },
     ],
   },
   {
     label: 'Accounting', icon: DollarSign,
     children: [
-      { label: 'Invoices',           to: '/accounting/invoices',           icon: FileText },
-      { label: 'AR Ageing',          to: '/accounting/ar-ageing',          icon: TrendingUp },
-      { label: 'Accounts Payable',   to: '/accounting/accounts-payable',   icon: DollarSign },
-      { label: 'Chart of Accounts',  to: '/accounting/chart-of-accounts',  icon: BookOpen },
+      { label: 'Dashboard',         to: '/accounting/dashboard',          icon: Activity },
+      { label: 'Invoices',          to: '/accounting/invoices',           icon: FileText },
+      { label: 'Cash Flow',         to: '/accounting/cashflow',           icon: TrendingUp },
+      { label: 'AR Ageing',         to: '/accounting/ar-ageing',          icon: BarChart3 },
+      { label: 'Accounts Payable',  to: '/accounting/accounts-payable',   icon: DollarSign },
+      { label: 'Chart of Accounts', to: '/accounting/chart-of-accounts',  icon: BookOpen },
     ],
   },
   {
-    label: 'Shipping', icon: Truck, to: '/shipping', children: undefined,
-  } as NavItem,
-  {
     label: 'CRM', icon: Phone,
     children: [
-      { label: 'Prospects',     to: '/crm/prospects',     icon: TrendingUp },
-      { label: 'Call Reports',  to: '/crm/call-reports',  icon: Phone },
+      { label: 'Pipeline',     to: '/crm/prospects',    icon: TrendingUp },
+      { label: 'Contacts',     to: '/crm/contacts',     icon: Users },
+      { label: 'Customers',    to: '/sales/customers',  icon: Users },
+      { label: 'Call Reports', to: '/crm/call-reports', icon: Phone },
     ],
   },
 ];
@@ -90,9 +94,10 @@ const NAV_ANALYTICS: NavItem[] = [
 ];
 
 const NAV_ADMIN: NavItem[] = [
-  { label: 'Scan Barcode', to: '/scan',              icon: QrCode },
-  { label: 'Automation',   to: '/admin/automation',  icon: Mail },
-  { label: 'Users',        to: '/admin/users',       icon: Users },
+  { label: 'Scan Barcode',  to: '/scan',                   icon: QrCode },
+  { label: 'Automation',    to: '/admin/automation',        icon: Mail },
+  { label: 'Integrations',  to: '/admin/integrations',      icon: Plug },
+  { label: 'Users',         to: '/admin/users',             icon: Users },
 ];
 
 function useGroupActive(children: NavChild[]) {

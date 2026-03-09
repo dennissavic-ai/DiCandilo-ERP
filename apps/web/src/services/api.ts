@@ -110,12 +110,15 @@ export const inventoryApi = {
   createItem: (data: object) => api.post<InventoryItem>('/inventory/items', data),
 
   // Operations
-  adjustStock: (data: object) => api.post('/inventory/adjust', data),
-  receiveStock: (data: object) => api.post('/inventory/receive', data),
-  createTransfer: (data: object) => api.post('/inventory/transfers', data),
-  listTransfers: (params?: object) => api.get('/inventory/transfers', { params }),
-  getValuation: (params?: object) => api.get('/inventory/valuation', { params }),
-  getTransactions: (itemId: string, params?: object) => api.get(`/inventory/items/${itemId}/transactions`, { params }),
+  adjustStock:      (data: object)   => api.post('/inventory/adjust', data),
+  receiveStock:     (data: object)   => api.post('/inventory/receive', data),
+  createTransfer:   (data: object)   => api.post('/inventory/transfers', data),
+  listTransfers:    (params?: object) => api.get('/inventory/transfers', { params }),
+  getValuation:     (params?: object) => api.get('/inventory/valuation', { params }),
+  getTransactions:  (itemId: string, params?: object) => api.get(`/inventory/items/${itemId}/transactions`, { params }),
+  // Dashboard & audit
+  getDashboard:     ()               => api.get('/inventory/dashboard'),
+  listAdjustments:  (params?: object) => api.get('/inventory/adjustments', { params }),
 
   // MTRs
   listMTRs: (itemId: string) => api.get(`/inventory/items/${itemId}/mtrs`),
@@ -179,6 +182,11 @@ export const accountingApi = {
   listAPInvoices: (params?: object) => api.get('/accounting/ap-invoices', { params }),
   createAPInvoice: (data: object) => api.post('/accounting/ap-invoices', data),
   recordAPPayment: (id: string, data: object) => api.post(`/accounting/ap-invoices/${id}/payments`, data),
+  // Dashboard + cashflow
+  getDashboard:        ()             => api.get('/accounting/dashboard'),
+  getCashFlow:         ()             => api.get('/accounting/cashflow'),
+  addCashFlowEntry:    (data: object) => api.post('/accounting/cashflow/entries', data),
+  deleteCashFlowEntry: (id: string)   => api.delete(`/accounting/cashflow/entries/${id}`),
 };
 
 // Reporting
@@ -196,8 +204,13 @@ export const processingApi = {
   getWorkOrder: (id: string) => api.get<WorkOrder>(`/processing/work-orders/${id}`),
   createWorkOrder: (data: object) => api.post('/processing/work-orders', data),
   updateStatus: (id: string, status: string) => api.patch(`/processing/work-orders/${id}/status`, { status }),
-  logTime: (id: string, data: object) => api.post(`/processing/work-orders/${id}/time-logs`, data),
   getSchedule: (params?: object) => api.get('/processing/schedule', { params }),
+  getKanban:       ()             => api.get('/processing/kanban'),
+  getDashboard:    ()             => api.get('/processing/dashboard'),
+  listTimeEntries: (params?: object) => api.get('/processing/time-entries', { params }),
+  addTimeEntry:    (data: object) => api.post('/processing/time-entries', data),
+  scan: (data: { jobBarcode: string; stationBarcode?: string; eventType: 'CHECK_IN' | 'CHECK_OUT' }) =>
+    api.post('/processing/scan', data),
 };
 
 // Nesting
@@ -226,6 +239,47 @@ export const tasksApi = {
   updateTask: (id: string, data: object) => api.put(`/tasks/${id}`, data),
   deleteTask: (id: string) => api.delete(`/tasks/${id}`),
   addComment: (id: string, body: string) => api.post(`/tasks/${id}/comments`, { body }),
+};
+
+// Auto Fulfillment
+export const fulfillmentApi = {
+  listRules: () => api.get<AutoFulfillmentRule[]>('/inventory/fulfillment/rules'),
+  createRule: (data: object) => api.post<AutoFulfillmentRule>('/inventory/fulfillment/rules', data),
+  updateRule: (id: string, data: object) => api.put<AutoFulfillmentRule>(`/inventory/fulfillment/rules/${id}`, data),
+  deleteRule: (id: string) => api.delete(`/inventory/fulfillment/rules/${id}`),
+  runCheck: () => api.post<FulfillmentCheckResult>('/inventory/fulfillment/check'),
+  listRecentPos: (params?: object) => api.get<PaginatedResponse<PurchaseOrder>>('/inventory/fulfillment/recent-pos', { params }),
+};
+
+// CRM
+export const crmApi = {
+  // Pipeline stages
+  listStages:  () => api.get<PipelineStage[]>('/crm/pipeline-stages'),
+  saveStages:  (stages: Omit<PipelineStage, 'id' | 'companyId' | 'createdAt' | 'updatedAt'>[]) =>
+    api.put<PipelineStage[]>('/crm/pipeline-stages', { stages }),
+
+  // Prospects
+  listProspects:  (params?: object) => api.get('/crm/prospects', { params }),
+  getProspect:    (id: string)      => api.get(`/crm/prospects/${id}`),
+  createProspect: (data: object)    => api.post('/crm/prospects', data),
+  updateProspect: (id: string, data: object) => api.put(`/crm/prospects/${id}`, data),
+  changeStage:    (id: string, stage: string) => api.patch(`/crm/prospects/${id}/stage`, { stage }),
+  deleteProspect: (id: string)      => api.delete(`/crm/prospects/${id}`),
+
+  // Call reports
+  listCallReports:  (params?: object) => api.get('/crm/call-reports', { params }),
+  createCallReport: (data: object)    => api.post('/crm/call-reports', data),
+};
+
+// Integrations
+export const integrationApi = {
+  listConfigs:    ()                          => api.get('/integrations/config'),
+  getConfig:      (provider: string)          => api.get(`/integrations/config/${provider}`),
+  saveConfig:     (provider: string, data: object) => api.put(`/integrations/config/${provider}`, data),
+  disconnect:     (provider: string)          => api.delete(`/integrations/config/${provider}`),
+  runSync:        (provider: string)          => api.post(`/integrations/sync/${provider}`),
+  listSyncLogs:   (params?: object)           => api.get('/integrations/sync/logs', { params }),
+  getSyncLog:     (id: string)                => api.get(`/integrations/sync/logs/${id}`),
 };
 
 // Automation
@@ -408,4 +462,65 @@ export interface EmailLog {
   status: string;
   errorMsg?: string;
   sentAt: string;
+}
+
+export interface AutoFulfillmentRule {
+  id: string;
+  companyId: string;
+  productId: string;
+  supplierId: string;
+  isActive: boolean;
+  reorderPoint: string;
+  reorderQty: string;
+  unitPrice: number;      // cents
+  leadTimeDays?: number;
+  notes?: string;
+  lastTriggeredAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  product: { id: string; code: string; description: string; uom: string };
+  supplier: { id: string; code: string; name: string };
+}
+
+export interface FulfillmentCheckResult {
+  checked: number;
+  posCreated: number;
+  skipped: number;
+  details: Array<{ productCode: string; poNumber: string; supplierId: string }>;
+}
+
+export interface PipelineStage {
+  id: string;
+  companyId: string;
+  name: string;
+  color: string;
+  order: number;
+  isWon: boolean;
+  isLost: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface IntegrationCredential {
+  id: string;
+  provider: string;
+  isActive: boolean;
+  lastSyncAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SyncLog {
+  id: string;
+  provider: string;
+  direction: string;
+  entityType: string;
+  status: string;            // 'RUNNING' | 'SUCCESS' | 'FAILED' | 'PARTIAL'
+  totalRecords: number;
+  syncedRecords: number;
+  errorCount: number;
+  errors?: { id?: string; name?: string; error: string }[];
+  startedAt: string;
+  completedAt?: string;
+  triggeredBy?: string;
 }

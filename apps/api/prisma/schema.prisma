@@ -132,6 +132,7 @@ model User {
   auditLogs              AuditLog[]
   tasks                  Task[]                @relation("TaskAssignee")
   createdTasks           Task[]                @relation("TaskCreator")
+  callReports            CallReport[]
 }
 
 model RefreshToken {
@@ -185,6 +186,8 @@ model Customer {
   taxExemptNumber   String?
   notes             String?
   isActive          Boolean   @default(true)
+  xeroContactId     String?
+  shopifyCustomerId String?
   deletedAt         DateTime?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
@@ -197,9 +200,12 @@ model Customer {
   invoices          Invoice[]
   portalUsers       CustomerPortalUser[]
   pricingRules      PricingRule[]
+  callReports       CallReport[]
 
   @@unique([companyId, code])
   @@index([companyId])
+  @@index([companyId, xeroContactId])
+  @@index([companyId, shopifyCustomerId])
 }
 
 model CustomerGroup {
@@ -254,8 +260,9 @@ model Supplier {
   createdBy       String?
   updatedBy       String?
 
-  purchaseOrders  PurchaseOrder[]
-  invoices        SupplierInvoice[]
+  purchaseOrders       PurchaseOrder[]
+  invoices             SupplierInvoice[]
+  autoFulfillmentRules AutoFulfillmentRule[]
 
   @@unique([companyId, code])
   @@index([companyId])
@@ -328,14 +335,15 @@ model Product {
   createdBy          String?
   updatedBy          String?
 
-  category           ProductCategory? @relation(fields: [categoryId], references: [id])
-  inventoryItems     InventoryItem[]
-  purchaseOrderLines PurchaseOrderLine[]
-  salesOrderLines    SalesOrderLine[]
-  salesQuoteLines    SalesQuoteLineItem[]
-  pricingRules       PricingRule[]
-  barcodes           Barcode[]
-  workOrderLines     WorkOrderLine[]
+  category             ProductCategory?    @relation(fields: [categoryId], references: [id])
+  inventoryItems       InventoryItem[]
+  purchaseOrderLines   PurchaseOrderLine[]
+  salesOrderLines      SalesOrderLine[]
+  salesQuoteLines      SalesQuoteLineItem[]
+  pricingRules         PricingRule[]
+  barcodes             Barcode[]
+  workOrderLines       WorkOrderLine[]
+  autoFulfillmentRules AutoFulfillmentRule[]
 
   @@unique([companyId, code])
   @@index([companyId])
@@ -921,6 +929,7 @@ model WorkCenter {
   updatedAt   DateTime    @updatedAt
 
   workOrderLines WorkOrderLine[]
+  timeEntries    JobTimeEntry[]
 
   @@unique([companyId, code])
 }
@@ -950,6 +959,7 @@ model WorkOrder {
   salesOrder      SalesOrder?    @relation(fields: [salesOrderId], references: [id])
   lines           WorkOrderLine[]
   glTransactions  GLTransaction[]
+  timeEntries     JobTimeEntry[]
 
   @@unique([companyId, workOrderNumber])
   @@index([status])
@@ -1549,4 +1559,195 @@ enum SecuritySeverity {
   INFO
   WARNING
   CRITICAL
+}
+
+// ─── CRM ──────────────────────────────────────────────────────────────────────
+
+/// A prospect / deal in the sales pipeline.
+model Prospect {
+  id              String    @id @default(uuid())
+  companyId       String
+  companyName     String
+  contactName     String?
+  email           String?
+  phone           String?
+  stage           String    @default("LEAD")
+  industry        String?
+  estimatedValue  BigInt?             // cents
+  probability     Int?      @default(50)
+  nextFollowUp    DateTime?
+  notes           String?
+  deletedAt       DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  createdBy       String?
+  updatedBy       String?
+
+  callReports     CallReport[]
+
+  @@index([companyId])
+  @@index([companyId, stage])
+}
+
+/// A logged interaction — call, visit, email, meeting, or demo.
+model CallReport {
+  id              String    @id @default(uuid())
+  companyId       String
+  prospectId      String?
+  customerId      String?
+  userId          String?
+  type            String              // CALL | VISIT | EMAIL | MEETING | DEMO
+  callDate        DateTime
+  durationMinutes Int?
+  subject         String
+  notes           String?
+  outcome         String              // FOLLOW_UP | QUOTE_REQUESTED | ORDER_PLACED | NOT_INTERESTED | CALLBACK | NO_ANSWER
+  followUpDate    DateTime?
+  deletedAt       DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  createdBy       String?
+
+  prospect        Prospect? @relation(fields: [prospectId], references: [id])
+  customer        Customer? @relation(fields: [customerId], references: [id])
+  user            User?     @relation(fields: [userId], references: [id])
+
+  @@index([companyId])
+  @@index([prospectId])
+  @@index([customerId])
+}
+
+/// Company-specific pipeline stage configuration.
+/// Defaults are seeded on first access.
+model PipelineStage {
+  id          String   @id @default(uuid())
+  companyId   String
+  name        String              // Display name, e.g. "Qualified"
+  color       String   @default("gray") // gray|blue|teal|amber|orange|green|red|violet
+  order       Int
+  isWon       Boolean  @default(false)
+  isLost      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([companyId, name])
+  @@index([companyId, order])
+}
+
+// ─── AUTO FULFILLMENT ─────────────────────────────────────────────────────────
+
+/// One rule per product per company. When qtyAvailable < reorderPoint the
+/// scheduler automatically creates a draft PO for reorderQty units from the
+/// configured supplier. The draft PO is tagged [AUTO-FULFILLMENT] in notes and
+/// requires human review before being submitted/approved.
+model AutoFulfillmentRule {
+  id              String    @id @default(uuid())
+  companyId       String
+  productId       String
+  supplierId      String
+  isActive        Boolean   @default(true)
+  reorderPoint    Decimal   @db.Decimal(18, 4) // trigger qty (in product UOM)
+  reorderQty      Decimal   @db.Decimal(18, 4) // how much to order
+  unitPrice       BigInt    @default(0)         // expected unit price (cents)
+  leadTimeDays    Int?                           // informational
+  notes           String?
+  lastTriggeredAt DateTime?
+  deletedAt       DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  createdBy       String?
+  updatedBy       String?
+
+  product         Product  @relation(fields: [productId], references: [id])
+  supplier        Supplier @relation(fields: [supplierId], references: [id])
+
+  @@unique([companyId, productId])
+  @@index([companyId])
+  @@index([isActive])
+}
+
+// ─── INTEGRATIONS ────────────────────────────────────────────────────────────
+
+/// Stores per-company, per-provider integration credentials and configuration.
+/// Config JSON holds provider-specific fields (tokens, keys, shop domain, etc.)
+model IntegrationCredential {
+  id          String    @id @default(uuid())
+  companyId   String
+  provider    String    // 'xero' | 'shopify'
+  config      Json      @default("{}")
+  isActive    Boolean   @default(true)
+  lastSyncAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  updatedBy   String?
+
+  syncLogs    SyncLog[]
+
+  @@unique([companyId, provider])
+  @@index([companyId])
+}
+
+/// Records each sync run — status, counts, and per-record errors.
+model SyncLog {
+  id             String    @id @default(uuid())
+  companyId      String
+  credentialId   String
+  provider       String
+  direction      String    // 'IMPORT'
+  entityType     String    // 'customer'
+  status         String    // 'RUNNING' | 'SUCCESS' | 'FAILED' | 'PARTIAL'
+  totalRecords   Int       @default(0)
+  syncedRecords  Int       @default(0)
+  errorCount     Int       @default(0)
+  errors         Json      @default("[]")
+  startedAt      DateTime  @default(now())
+  completedAt    DateTime?
+  triggeredBy    String?
+
+  credential     IntegrationCredential @relation(fields: [credentialId], references: [id])
+
+  @@index([companyId, provider])
+  @@index([credentialId])
+}
+
+// ─── JOB TIME TRACKING ────────────────────────────────────────────────────────
+
+/// Records each barcode-scan or manual check-in/check-out event for a work order
+/// at a specific station (work center). Pairs of CHECK_IN + CHECK_OUT give duration.
+model JobTimeEntry {
+  id            String     @id @default(uuid())
+  companyId     String
+  workOrderId   String
+  workCenterId  String?
+  userId        String?
+  eventType     String     // 'CHECK_IN' | 'CHECK_OUT'
+  scannedAt     DateTime   @default(now())
+  notes         String?
+  createdAt     DateTime   @default(now())
+  createdBy     String?
+
+  workOrder     WorkOrder  @relation(fields: [workOrderId], references: [id])
+  workCenter    WorkCenter? @relation(fields: [workCenterId], references: [id])
+
+  @@index([companyId])
+  @@index([workOrderId])
+  @@index([workCenterId])
+}
+
+// ─── CASH FLOW ────────────────────────────────────────────────────────────────
+
+/// Manual cash-flow entries (opening bank balance, manual income/expense adjustments).
+/// Used alongside invoice due dates to build the cash flow forecast chart.
+model CashFlowEntry {
+  id          String    @id @default(uuid())
+  companyId   String
+  entryDate   DateTime
+  type        String    // 'OPENING_BALANCE' | 'MANUAL_INCOME' | 'MANUAL_EXPENSE'
+  amount      BigInt    // cents — positive = inflow, negative = outflow
+  description String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdBy   String?
+
+  @@index([companyId, entryDate])
 }

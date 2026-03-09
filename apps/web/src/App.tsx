@@ -4,6 +4,7 @@ import { Layout } from './components/layout/Layout';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { DashboardPage } from './pages/DashboardPage';
+import { InventoryDashboardPage } from './pages/inventory/InventoryDashboardPage';
 import { InventoryPage } from './pages/inventory/InventoryPage';
 import { ProductsPage } from './pages/inventory/ProductsPage';
 import { ProductDetailPage } from './pages/inventory/ProductDetailPage';
@@ -11,6 +12,7 @@ import { StockAdjustPage } from './pages/inventory/StockAdjustPage';
 import { ReceiveStockPage } from './pages/inventory/ReceiveStockPage';
 import { StockTransferPage } from './pages/inventory/StockTransferPage';
 import { MtrPage } from './pages/inventory/MtrPage';
+import { AutoFulfillmentPage } from './pages/inventory/AutoFulfillmentPage';
 import { CustomersPage } from './pages/sales/CustomersPage';
 import { SalesOrdersPage } from './pages/sales/SalesOrdersPage';
 import { SalesOrderDetailPage } from './pages/sales/SalesOrderDetailPage';
@@ -25,18 +27,26 @@ import { WorkOrdersPage } from './pages/processing/WorkOrdersPage';
 import { WorkOrderDetailPage } from './pages/processing/WorkOrderDetailPage';
 import { SchedulePage } from './pages/processing/SchedulePage';
 import { NestingPage } from './pages/processing/NestingPage';
+import { ProcessingDashboardPage } from './pages/processing/ProcessingDashboardPage';
+import { KanbanBoardPage } from './pages/processing/KanbanBoardPage';
+import { TimeTrackingPage } from './pages/processing/TimeTrackingPage';
 import { InvoicesPage } from './pages/accounting/InvoicesPage';
 import { ARAgeingPage } from './pages/accounting/ARAgeingPage';
 import { ChartOfAccountsPage } from './pages/accounting/ChartOfAccountsPage';
 import { AccountsPayablePage } from './pages/accounting/AccountsPayablePage';
+import { AccountingDashboardPage } from './pages/accounting/AccountingDashboardPage';
+import { CashFlowPage } from './pages/accounting/CashFlowPage';
 import { ReportingPage } from './pages/ReportingPage';
 import { UsersPage } from './pages/admin/UsersPage';
 import { AutomationPage } from './pages/admin/AutomationPage';
+import { IntegrationsPage } from './pages/admin/IntegrationsPage';
 import { BarcodePrintPage } from './pages/inventory/BarcodePrintPage';
 import { ScanPage } from './pages/ScanPage';
 import { TasksPage } from './pages/TasksPage';
 import { NotFoundPage } from './pages/NotFoundPage';
-import { ProspectsPage } from './pages/crm/ProspectsPage';
+import { PipelinePage } from './pages/crm/PipelinePage';
+import { ContactsPage } from './pages/crm/ContactsPage';
+import { ContactDetailPage } from './pages/crm/ContactDetailPage';
 import { CallReportsPage } from './pages/crm/CallReportsPage';
 import { ShippingPage } from './pages/shipping/ShippingPage';
 
@@ -68,6 +78,7 @@ export default function App() {
           {/* Inventory */}
           <Route path="inventory">
             <Route index element={<InventoryPage />} />
+            <Route path="dashboard" element={<InventoryDashboardPage />} />
             <Route path="products" element={<ProductsPage />} />
             <Route path="products/:id" element={<ProductDetailPage />} />
             <Route path="products/:id/barcodes" element={<BarcodePrintPage />} />
@@ -75,6 +86,7 @@ export default function App() {
             <Route path="receive" element={<ReceiveStockPage />} />
             <Route path="transfer" element={<StockTransferPage />} />
             <Route path="mtr" element={<MtrPage />} />
+            <Route path="auto-fulfillment" element={<AutoFulfillmentPage />} />
           </Route>
 
           {/* Sales */}
@@ -97,19 +109,24 @@ export default function App() {
             <Route path="suppliers" element={<SuppliersPage />} />
           </Route>
 
-          {/* Processing */}
+          {/* Processing / Orders */}
           <Route path="processing">
-            <Route index element={<WorkOrdersPage />} />
+            <Route index element={<ProcessingDashboardPage />} />
+            <Route path="dashboard" element={<ProcessingDashboardPage />} />
+            <Route path="kanban" element={<KanbanBoardPage />} />
             <Route path="work-orders" element={<WorkOrdersPage />} />
             <Route path="work-orders/:id" element={<WorkOrderDetailPage />} />
+            <Route path="time-tracking" element={<TimeTrackingPage />} />
             <Route path="schedule" element={<SchedulePage />} />
             <Route path="nesting" element={<NestingPage />} />
           </Route>
 
           {/* Accounting */}
           <Route path="accounting">
-            <Route index element={<InvoicesPage />} />
+            <Route index element={<AccountingDashboardPage />} />
+            <Route path="dashboard" element={<AccountingDashboardPage />} />
             <Route path="invoices" element={<InvoicesPage />} />
+            <Route path="cashflow" element={<CashFlowPage />} />
             <Route path="ar-ageing" element={<ARAgeingPage />} />
             <Route path="chart-of-accounts" element={<ChartOfAccountsPage />} />
             <Route path="accounts-payable" element={<AccountsPayablePage />} />
@@ -120,8 +137,10 @@ export default function App() {
 
           {/* CRM */}
           <Route path="crm">
-            <Route index element={<ProspectsPage />} />
-            <Route path="prospects" element={<ProspectsPage />} />
+            <Route index element={<PipelinePage />} />
+            <Route path="prospects" element={<PipelinePage />} />
+            <Route path="contacts" element={<ContactsPage />} />
+            <Route path="contacts/:type/:id" element={<ContactDetailPage />} />
             <Route path="call-reports" element={<CallReportsPage />} />
           </Route>
 
@@ -134,6 +153,7 @@ export default function App() {
           {/* Admin */}
           <Route path="admin/users" element={<UsersPage />} />
           <Route path="admin/automation" element={<AutomationPage />} />
+          <Route path="admin/integrations" element={<IntegrationsPage />} />
 
           {/* 404 */}
           <Route path="*" element={<NotFoundPage />} />

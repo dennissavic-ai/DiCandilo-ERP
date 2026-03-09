@@ -555,4 +555,130 @@ export const inventoryRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.send({ created, updated, skipped, errors });
     } catch (err) { return handleError(reply, err); }
   });
+
+  // ── Inventory Dashboard ──────────────────────────────────────────────────────
+  // Returns per-product aggregated qty + value for dashboard charts.
+
+  fastify.get('/dashboard', {
+    schema: { tags: ['Inventory'] },
+    preHandler: [authenticate],
+  }, async (request, reply) => {
+    try {
+      const { companyId } = request.user as { companyId: string };
+
+      // Aggregate by product
+      const grouped = await prisma.inventoryItem.groupBy({
+        by: ['productId'],
+        where: { deletedAt: null, isActive: true, product: { companyId } },
+        _sum: { totalCost: true, qtyOnHand: true },
+      });
+
+      // Fetch product details for the aggregated product IDs
+      const productIds = grouped.map((g) => g.productId);
+      const products = await prisma.product.findMany({
+        where: { id: { in: productIds }, deletedAt: null },
+        select: { id: true, code: true, description: true, uom: true, category: { select: { name: true } } },
+      });
+      const productMap = Object.fromEntries(products.map((p) => [p.id, p]));
+
+      const items = grouped
+        .map((g) => ({
+          productId:   g.productId,
+          code:        productMap[g.productId]?.code ?? g.productId,
+          description: productMap[g.productId]?.description ?? '',
+          uom:         productMap[g.productId]?.uom ?? '',
+          category:    productMap[g.productId]?.category?.name ?? 'Uncategorised',
+          qtyOnHand:   Number(g._sum.qtyOnHand ?? 0),
+          totalValue:  Number(g._sum.totalCost ?? 0),
+        }))
+        .sort((a, b) => b.totalValue - a.totalValue);
+
+      const grandTotal      = items.reduce((s, i) => s + i.totalValue, 0);
+      const totalQty        = items.reduce((s, i) => s + i.qtyOnHand, 0);
+      const productCount    = items.length;
+
+      // Category breakdown
+      const byCat: Record<string, { category: string; value: number; qty: number }> = {};
+      for (const item of items) {
+        const k = item.category;
+        byCat[k] = byCat[k] ?? { category: k, value: 0, qty: 0 };
+        byCat[k].value += item.totalValue;
+        byCat[k].qty   += item.qtyOnHand;
+      }
+
+      return reply.send({
+        data: {
+          grandTotal,
+          totalQty,
+          productCount,
+          items,
+          byCategory: Object.values(byCat).sort((a, b) => b.value - a.value),
+        },
+      });
+    } catch (err) { return handleError(reply, err); }
+  });
+
+  // ── Adjustments audit log ────────────────────────────────────────────────────
+  // Returns all ADJUSTMENT-type stock transactions across the company, with
+  // product and user info so supervisors can see every manual change.
+
+  fastify.get('/adjustments', {
+    schema: { tags: ['Inventory'] },
+    preHandler: [authenticate, requirePermission('inventory', 'view')],
+  }, async (request, reply) => {
+    try {
+      const { companyId } = request.user as { companyId: string };
+      const { limit: lim, offset: off } = z.object({
+        limit:  z.coerce.number().int().min(1).max(500).default(100),
+        offset: z.coerce.number().int().min(0).default(0),
+      }).parse(request.query);
+
+      const [txns, total] = await Promise.all([
+        prisma.stockTransaction.findMany({
+          where: {
+            transactionType: 'ADJUSTMENT',
+            inventoryItem: { product: { companyId } },
+          },
+          orderBy: { createdAt: 'desc' },
+          take: lim,
+          skip: off,
+          include: {
+            inventoryItem: {
+              select: {
+                id: true,
+                heatNumber: true,
+                lotNumber: true,
+                product: { select: { id: true, code: true, description: true, uom: true } },
+                location: { select: { code: true, name: true } },
+              },
+            },
+          },
+        }),
+        prisma.stockTransaction.count({
+          where: {
+            transactionType: 'ADJUSTMENT',
+            inventoryItem: { product: { companyId } },
+          },
+        }),
+      ]);
+
+      return reply.send({
+        data: txns.map((t) => ({
+          id:          t.id,
+          createdAt:   t.createdAt,
+          createdBy:   t.createdBy,
+          quantity:    Number(t.quantity),
+          qtyBefore:   Number(t.qtyBefore),
+          qtyAfter:    Number(t.qtyAfter),
+          unitCost:    Number(t.unitCost),
+          notes:       t.notes,
+          product:     t.inventoryItem.product,
+          location:    t.inventoryItem.location,
+          heatNumber:  t.inventoryItem.heatNumber,
+          lotNumber:   t.inventoryItem.lotNumber,
+        })),
+        meta: { total, limit: lim, offset: off },
+      });
+    } catch (err) { return handleError(reply, err); }
+  });
 };
