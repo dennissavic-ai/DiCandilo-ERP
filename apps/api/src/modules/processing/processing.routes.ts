@@ -178,4 +178,305 @@ export const processingRoutes: FastifyPluginAsync = async (fastify) => {
       return workOrders;
     } catch (err) { return handleError(reply, err); }
   });
+
+  // ── Kanban board ────────────────────────────────────────────────────────────
+
+  fastify.get('/kanban', { preHandler: [authenticate] }, async (request, reply) => {
+    try {
+      const { companyId } = request.user as { companyId: string };
+
+      const workOrders = await prisma.workOrder.findMany({
+        where: { companyId, deletedAt: null },
+        include: {
+          salesOrder: {
+            select: {
+              orderNumber: true,
+              totalAmount: true,
+              customer: { select: { name: true } },
+            },
+          },
+          lines: {
+            select: {
+              id: true, operation: true, qtyRequired: true, qtyCompleted: true,
+              estimatedMinutes: true, actualMinutes: true,
+              workCenter: { select: { id: true, code: true, name: true } },
+            },
+          },
+          _count: { select: { timeEntries: true } },
+        },
+        orderBy: [{ priority: 'desc' }, { scheduledDate: 'asc' }],
+      });
+
+      const STATUS_ORDER = ['DRAFT', 'SCHEDULED', 'IN_PROGRESS', 'ON_HOLD', 'COMPLETED', 'CANCELLED'];
+      const grouped: Record<string, unknown[]> = {};
+      for (const s of STATUS_ORDER) grouped[s] = [];
+      for (const wo of workOrders) {
+        if (grouped[wo.status]) grouped[wo.status].push(wo);
+      }
+
+      return reply.send({ data: grouped, statusOrder: STATUS_ORDER });
+    } catch (err) { return handleError(reply, err); }
+  });
+
+  // ── Processing dashboard ────────────────────────────────────────────────────
+
+  fastify.get('/dashboard', { preHandler: [authenticate] }, async (request, reply) => {
+    try {
+      const { companyId } = request.user as { companyId: string };
+      const now = new Date();
+
+      const [allWOs, completedWOs, revenueInPipeline] = await Promise.all([
+        prisma.workOrder.findMany({
+          where: { companyId, deletedAt: null },
+          select: {
+            id: true, status: true, scheduledDate: true, startDate: true,
+            completedDate: true, priority: true,
+            salesOrder: { select: { orderNumber: true, totalAmount: true, customer: { select: { name: true } } } },
+          },
+        }),
+        prisma.workOrder.findMany({
+          where: { companyId, deletedAt: null, status: 'COMPLETED', startDate: { not: null }, completedDate: { not: null } },
+          select: { startDate: true, completedDate: true },
+        }),
+        prisma.workOrder.aggregate({
+          where: {
+            companyId,
+            deletedAt: null,
+            status: { notIn: ['COMPLETED', 'CANCELLED'] },
+            salesOrderId: { not: null },
+          },
+          _sum: { },
+        }),
+      ]);
+
+      // avg order→dispatch (completedDate - startDate) in hours
+      let avgHours: number | null = null;
+      if (completedWOs.length > 0) {
+        const totalMs = completedWOs.reduce((sum, wo) => {
+          if (!wo.startDate || !wo.completedDate) return sum;
+          return sum + (new Date(wo.completedDate).getTime() - new Date(wo.startDate).getTime());
+        }, 0);
+        avgHours = Math.round(totalMs / completedWOs.length / 3600000 * 10) / 10;
+      }
+
+      // Revenue in pipeline: sum salesOrder.totalAmount for active WOs
+      const activeWOs = allWOs.filter((wo) => !['COMPLETED', 'CANCELLED'].includes(wo.status));
+      const pipelineRevenue = activeWOs.reduce((sum, wo) => {
+        return sum + Number(wo.salesOrder?.totalAmount ?? 0);
+      }, 0);
+
+      // Status counts
+      const statusCounts: Record<string, number> = {};
+      for (const wo of allWOs) {
+        statusCounts[wo.status] = (statusCounts[wo.status] ?? 0) + 1;
+      }
+
+      // Upcoming dispatch (WOs scheduled in next 14 days, not completed)
+      const twoWeeks = new Date(now.getTime() + 14 * 86400000);
+      const upcoming = allWOs
+        .filter((wo) => wo.scheduledDate && new Date(wo.scheduledDate) <= twoWeeks && !['COMPLETED', 'CANCELLED'].includes(wo.status))
+        .sort((a, b) => new Date(a.scheduledDate!).getTime() - new Date(b.scheduledDate!).getTime())
+        .slice(0, 10)
+        .map((wo) => ({
+          id: wo.id,
+          status: wo.status,
+          scheduledDate: wo.scheduledDate,
+          customer: wo.salesOrder?.customer?.name,
+          orderNumber: wo.salesOrder?.orderNumber,
+          totalAmount: wo.salesOrder?.totalAmount,
+        }));
+
+      return reply.send({
+        data: {
+          totalJobs: allWOs.length,
+          activeJobs: activeWOs.length,
+          avgCycleHours: avgHours,
+          pipelineRevenue,
+          statusCounts,
+          upcoming,
+        },
+      });
+    } catch (err) { return handleError(reply, err); }
+  });
+
+  // ── Time tracking ───────────────────────────────────────────────────────────
+
+  // GET time entries for a work order (or all recent)
+  fastify.get('/time-entries', { preHandler: [authenticate] }, async (request, reply) => {
+    try {
+      const { companyId } = request.user as { companyId: string };
+      const { workOrderId, workCenterId, limit: lim } = request.query as {
+        workOrderId?: string; workCenterId?: string; limit?: string;
+      };
+
+      const entries = await (prisma as any).jobTimeEntry.findMany({
+        where: {
+          companyId,
+          ...(workOrderId && { workOrderId }),
+          ...(workCenterId && { workCenterId }),
+        },
+        orderBy: { scannedAt: 'desc' },
+        take: Math.min(Number(lim ?? 200), 500),
+        include: {
+          workOrder: { select: { workOrderNumber: true } },
+          workCenter: { select: { code: true, name: true } },
+        },
+      });
+
+      return reply.send({ data: entries });
+    } catch (err) { return handleError(reply, err); }
+  });
+
+  // POST time entry (manual or via scan)
+  fastify.post('/time-entries', { preHandler: [authenticate] }, async (request, reply) => {
+    try {
+      const { companyId, sub } = request.user as { companyId: string; sub: string };
+      const body = z.object({
+        workOrderId:  z.string().uuid(),
+        workCenterId: z.string().uuid().optional(),
+        eventType:    z.enum(['CHECK_IN', 'CHECK_OUT']),
+        scannedAt:    z.string().datetime().optional(),
+        notes:        z.string().optional(),
+      }).parse(request.body);
+
+      // If CHECK_OUT, find the latest unmatched CHECK_IN for this WO+station
+      let pairedCheckIn: any = null;
+      if (body.eventType === 'CHECK_OUT') {
+        const entries = await (prisma as any).jobTimeEntry.findMany({
+          where: { companyId, workOrderId: body.workOrderId, ...(body.workCenterId && { workCenterId: body.workCenterId }), eventType: 'CHECK_IN' },
+          orderBy: { scannedAt: 'desc' },
+          take: 10,
+        });
+        // Check how many check-outs already follow this check-in
+        for (const e of entries) {
+          const checkOutCount = await (prisma as any).jobTimeEntry.count({
+            where: {
+              companyId,
+              workOrderId: body.workOrderId,
+              workCenterId: body.workCenterId ?? null,
+              eventType: 'CHECK_OUT',
+              scannedAt: { gte: e.scannedAt },
+            },
+          });
+          if (checkOutCount === 0) { pairedCheckIn = e; break; }
+        }
+      }
+
+      const entry = await (prisma as any).jobTimeEntry.create({
+        data: {
+          companyId,
+          workOrderId: body.workOrderId,
+          workCenterId: body.workCenterId,
+          userId: sub,
+          eventType: body.eventType,
+          scannedAt: body.scannedAt ? new Date(body.scannedAt) : new Date(),
+          notes: body.notes,
+          createdBy: sub,
+        },
+        include: {
+          workOrder: { select: { workOrderNumber: true } },
+          workCenter: { select: { code: true, name: true } },
+        },
+      });
+
+      // Auto-transition work order status on first CHECK_IN
+      if (body.eventType === 'CHECK_IN') {
+        const wo = await prisma.workOrder.findFirst({ where: { id: body.workOrderId, companyId } });
+        if (wo && wo.status === 'SCHEDULED') {
+          await prisma.workOrder.update({
+            where: { id: body.workOrderId },
+            data: { status: 'IN_PROGRESS', startDate: new Date(), updatedBy: sub },
+          });
+        }
+      }
+
+      return reply.status(201).send({ data: entry, pairedCheckIn });
+    } catch (err) { return handleError(reply, err); }
+  });
+
+  // ── Barcode scan endpoint ───────────────────────────────────────────────────
+
+  // POST /processing/scan — called when operator scans a job barcode + station barcode
+  // The barcodes resolve to workOrderNumber and workCenter code respectively
+  fastify.post('/scan', { preHandler: [authenticate] }, async (request, reply) => {
+    try {
+      const { companyId, sub } = request.user as { companyId: string; sub: string };
+      const body = z.object({
+        jobBarcode:     z.string().min(1),  // workOrderNumber or barcode data
+        stationBarcode: z.string().optional(), // workCenter code or barcode data
+        eventType:      z.enum(['CHECK_IN', 'CHECK_OUT']).default('CHECK_IN'),
+      }).parse(request.body);
+
+      // Resolve work order
+      const wo = await prisma.workOrder.findFirst({
+        where: {
+          companyId, deletedAt: null,
+          OR: [
+            { workOrderNumber: body.jobBarcode },
+            { id: body.jobBarcode },
+          ],
+        },
+      });
+      if (!wo) {
+        return reply.status(404).send({ error: 'WORK_ORDER_NOT_FOUND', message: `No work order found for barcode: ${body.jobBarcode}` });
+      }
+
+      // Resolve work center (optional)
+      let workCenter = null;
+      if (body.stationBarcode) {
+        workCenter = await prisma.workCenter.findFirst({
+          where: {
+            companyId, deletedAt: null, isActive: true,
+            OR: [
+              { code: body.stationBarcode },
+              { id: body.stationBarcode },
+            ],
+          },
+        });
+      }
+
+      // Create time entry
+      const entry = await (prisma as any).jobTimeEntry.create({
+        data: {
+          companyId,
+          workOrderId: wo.id,
+          workCenterId: workCenter?.id ?? null,
+          userId: sub,
+          eventType: body.eventType,
+          scannedAt: new Date(),
+          createdBy: sub,
+        },
+        include: {
+          workOrder: { select: { workOrderNumber: true } },
+          workCenter: { select: { code: true, name: true } },
+        },
+      });
+
+      // Auto-status transition
+      if (body.eventType === 'CHECK_IN' && wo.status === 'SCHEDULED') {
+        await prisma.workOrder.update({
+          where: { id: wo.id },
+          data: { status: 'IN_PROGRESS', startDate: new Date(), updatedBy: sub },
+        });
+      }
+      if (body.eventType === 'CHECK_OUT' && wo.status === 'IN_PROGRESS') {
+        // Check if all lines are complete to auto-close
+        const lines = await prisma.workOrderLine.findMany({ where: { workOrderId: wo.id } });
+        const allDone = lines.every((l) => Number(l.qtyCompleted) >= Number(l.qtyRequired));
+        if (allDone && lines.length > 0) {
+          await prisma.workOrder.update({
+            where: { id: wo.id },
+            data: { status: 'COMPLETED', completedDate: new Date(), updatedBy: sub },
+          });
+        }
+      }
+
+      return reply.send({
+        message: `${body.eventType} recorded`,
+        workOrder: { id: wo.id, workOrderNumber: wo.workOrderNumber, status: wo.status },
+        workCenter: workCenter ? { id: workCenter.id, code: workCenter.code, name: workCenter.name } : null,
+        entry,
+      });
+    } catch (err) { return handleError(reply, err); }
+  });
 };

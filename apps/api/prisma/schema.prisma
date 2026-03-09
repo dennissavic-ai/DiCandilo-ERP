@@ -929,6 +929,7 @@ model WorkCenter {
   updatedAt   DateTime    @updatedAt
 
   workOrderLines WorkOrderLine[]
+  timeEntries    JobTimeEntry[]
 
   @@unique([companyId, code])
 }
@@ -958,6 +959,7 @@ model WorkOrder {
   salesOrder      SalesOrder?    @relation(fields: [salesOrderId], references: [id])
   lines           WorkOrderLine[]
   glTransactions  GLTransaction[]
+  timeEntries     JobTimeEntry[]
 
   @@unique([companyId, workOrderNumber])
   @@index([status])
@@ -1706,4 +1708,46 @@ model SyncLog {
 
   @@index([companyId, provider])
   @@index([credentialId])
+}
+
+// ─── JOB TIME TRACKING ────────────────────────────────────────────────────────
+
+/// Records each barcode-scan or manual check-in/check-out event for a work order
+/// at a specific station (work center). Pairs of CHECK_IN + CHECK_OUT give duration.
+model JobTimeEntry {
+  id            String     @id @default(uuid())
+  companyId     String
+  workOrderId   String
+  workCenterId  String?
+  userId        String?
+  eventType     String     // 'CHECK_IN' | 'CHECK_OUT'
+  scannedAt     DateTime   @default(now())
+  notes         String?
+  createdAt     DateTime   @default(now())
+  createdBy     String?
+
+  workOrder     WorkOrder  @relation(fields: [workOrderId], references: [id])
+  workCenter    WorkCenter? @relation(fields: [workCenterId], references: [id])
+
+  @@index([companyId])
+  @@index([workOrderId])
+  @@index([workCenterId])
+}
+
+// ─── CASH FLOW ────────────────────────────────────────────────────────────────
+
+/// Manual cash-flow entries (opening bank balance, manual income/expense adjustments).
+/// Used alongside invoice due dates to build the cash flow forecast chart.
+model CashFlowEntry {
+  id          String    @id @default(uuid())
+  companyId   String
+  entryDate   DateTime
+  type        String    // 'OPENING_BALANCE' | 'MANUAL_INCOME' | 'MANUAL_EXPENSE'
+  amount      BigInt    // cents — positive = inflow, negative = outflow
+  description String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdBy   String?
+
+  @@index([companyId, entryDate])
 }

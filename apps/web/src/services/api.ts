@@ -179,6 +179,11 @@ export const accountingApi = {
   listAPInvoices: (params?: object) => api.get('/accounting/ap-invoices', { params }),
   createAPInvoice: (data: object) => api.post('/accounting/ap-invoices', data),
   recordAPPayment: (id: string, data: object) => api.post(`/accounting/ap-invoices/${id}/payments`, data),
+  // Dashboard + cashflow
+  getDashboard:        ()             => api.get('/accounting/dashboard'),
+  getCashFlow:         ()             => api.get('/accounting/cashflow'),
+  addCashFlowEntry:    (data: object) => api.post('/accounting/cashflow/entries', data),
+  deleteCashFlowEntry: (id: string)   => api.delete(`/accounting/cashflow/entries/${id}`),
 };
 
 // Reporting
@@ -196,8 +201,13 @@ export const processingApi = {
   getWorkOrder: (id: string) => api.get<WorkOrder>(`/processing/work-orders/${id}`),
   createWorkOrder: (data: object) => api.post('/processing/work-orders', data),
   updateStatus: (id: string, status: string) => api.patch(`/processing/work-orders/${id}/status`, { status }),
-  logTime: (id: string, data: object) => api.post(`/processing/work-orders/${id}/time-logs`, data),
   getSchedule: (params?: object) => api.get('/processing/schedule', { params }),
+  getKanban:       ()             => api.get('/processing/kanban'),
+  getDashboard:    ()             => api.get('/processing/dashboard'),
+  listTimeEntries: (params?: object) => api.get('/processing/time-entries', { params }),
+  addTimeEntry:    (data: object) => api.post('/processing/time-entries', data),
+  scan: (data: { jobBarcode: string; stationBarcode?: string; eventType: 'CHECK_IN' | 'CHECK_OUT' }) =>
+    api.post('/processing/scan', data),
 };
 
 // Nesting

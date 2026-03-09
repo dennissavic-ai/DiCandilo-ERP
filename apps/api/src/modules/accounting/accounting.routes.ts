@@ -645,4 +645,153 @@ async function postAPPaymentToGL(companyId: string, supplierInvId: string, payme
       },
     },
   });
+
+  // ── Accounting Dashboard ────────────────────────────────────────────────────
+
+  fastify.get('/dashboard', { preHandler: [authenticate] }, async (request, reply) => {
+    try {
+      const { companyId } = request.user as { companyId: string };
+      const now = new Date();
+
+      const twelveMonthsAgo = new Date(now);
+      twelveMonthsAgo.setMonth(now.getMonth() - 11);
+      twelveMonthsAgo.setDate(1);
+      twelveMonthsAgo.setHours(0, 0, 0, 0);
+
+      const invoices = await prisma.invoice.findMany({
+        where: { companyId, deletedAt: null, invoiceDate: { gte: twelveMonthsAgo } },
+        select: {
+          id: true, invoiceNumber: true, invoiceDate: true,
+          totalAmount: true, amountPaid: true, balanceDue: true, status: true,
+          customer: { select: { name: true } },
+          salesOrder: {
+            select: {
+              orderNumber: true,
+              workOrders: { select: { id: true, workOrderNumber: true, status: true } },
+            },
+          },
+        },
+        orderBy: { invoiceDate: 'asc' },
+      });
+
+      // Monthly revenue buckets
+      const monthlyRevenue: Record<string, { month: string; invoiced: number; received: number }> = {};
+      for (let i = 0; i < 12; i++) {
+        const d = new Date(twelveMonthsAgo);
+        d.setMonth(d.getMonth() + i);
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        monthlyRevenue[key] = { month: key, invoiced: 0, received: 0 };
+      }
+      for (const inv of invoices) {
+        const d = new Date(inv.invoiceDate);
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        if (monthlyRevenue[key]) {
+          monthlyRevenue[key].invoiced += Number(inv.totalAmount);
+          monthlyRevenue[key].received += Number(inv.amountPaid);
+        }
+      }
+
+      const customerRevenue: Record<string, { name: string; total: number }> = {};
+      for (const inv of invoices) {
+        const name = inv.customer?.name ?? 'Unknown';
+        customerRevenue[name] = customerRevenue[name] ?? { name, total: 0 };
+        customerRevenue[name].total += Number(inv.totalAmount);
+      }
+
+      const totalInvoiced    = invoices.reduce((s, i) => s + Number(i.totalAmount), 0);
+      const totalReceived    = invoices.reduce((s, i) => s + Number(i.amountPaid), 0);
+      const totalOutstanding = invoices.reduce((s, i) => s + Number(i.balanceDue), 0);
+      const overdueCount     = invoices.filter((i) => i.status === 'OVERDUE').length;
+
+      return reply.send({
+        data: {
+          kpis: { totalInvoiced, totalReceived, totalOutstanding, overdueCount },
+          monthlyRevenue: Object.values(monthlyRevenue),
+          topCustomers: Object.values(customerRevenue).sort((a, b) => b.total - a.total).slice(0, 8),
+          recentInvoices: invoices.slice(-10).reverse().map((inv) => ({
+            id: inv.id, invoiceNumber: inv.invoiceNumber, customer: inv.customer?.name,
+            totalAmount: Number(inv.totalAmount), status: inv.status, invoiceDate: inv.invoiceDate,
+            workOrders: inv.salesOrder?.workOrders ?? [],
+          })),
+        },
+      });
+    } catch (err) { return handleError(reply, err); }
+  });
+
+  // ── Cash Flow Forecast ──────────────────────────────────────────────────────
+
+  fastify.get('/cashflow', { preHandler: [authenticate] }, async (request, reply) => {
+    try {
+      const { companyId } = request.user as { companyId: string };
+      const now = new Date();
+      const rangeStart = new Date(now); rangeStart.setMonth(now.getMonth() - 3); rangeStart.setDate(1);
+      const rangeEnd   = new Date(now); rangeEnd.setMonth(now.getMonth() + 6); rangeEnd.setDate(0);
+
+      const [manualEntries, arInvoices, apInvoices, latestBalance] = await Promise.all([
+        (prisma as any).cashFlowEntry.findMany({
+          where: { companyId, entryDate: { gte: rangeStart, lte: rangeEnd } },
+          orderBy: { entryDate: 'asc' },
+        }),
+        prisma.invoice.findMany({
+          where: { companyId, deletedAt: null, dueDate: { gte: rangeStart, lte: rangeEnd }, status: { notIn: ['CANCELLED', 'PAID'] } },
+          select: { id: true, invoiceNumber: true, dueDate: true, balanceDue: true, status: true, customer: { select: { name: true } } },
+        }),
+        prisma.supplierInvoice.findMany({
+          where: { deletedAt: null, dueDate: { gte: rangeStart, lte: rangeEnd }, status: { notIn: ['CANCELLED', 'PAID'] }, supplier: { companyId } },
+          select: { id: true, invoiceNumber: true, dueDate: true, totalAmount: true, amountPaid: true, status: true, supplier: { select: { name: true } } },
+        }),
+        (prisma as any).cashFlowEntry.findFirst({
+          where: { companyId, type: 'OPENING_BALANCE' },
+          orderBy: { entryDate: 'desc' },
+        }),
+      ]);
+
+      return reply.send({
+        data: {
+          openingBalance: latestBalance ? { amount: Number(latestBalance.amount), date: latestBalance.entryDate } : null,
+          manualEntries: manualEntries.map((e: any) => ({ id: e.id, entryDate: e.entryDate, type: e.type, amount: Number(e.amount), description: e.description })),
+          arInvoices: arInvoices.map((i) => ({ id: i.id, invoiceNumber: i.invoiceNumber, dueDate: i.dueDate, amount: Number(i.balanceDue), customer: i.customer?.name, status: i.status })),
+          apInvoices: apInvoices.map((i) => ({ id: i.id, invoiceNumber: i.invoiceNumber, dueDate: i.dueDate, amount: -(Number(i.totalAmount) - Number(i.amountPaid)), supplier: i.supplier?.name, status: i.status })),
+        },
+      });
+    } catch (err) { return handleError(reply, err); }
+  });
+
+  fastify.post('/cashflow/entries', { preHandler: [authenticate, requirePermission('accounting', 'create')] }, async (request, reply) => {
+    try {
+      const { companyId, sub } = request.user as { companyId: string; sub: string };
+      const body = z.object({
+        entryDate:   z.string().datetime(),
+        type:        z.enum(['OPENING_BALANCE', 'MANUAL_INCOME', 'MANUAL_EXPENSE']),
+        amount:      z.number().int(),
+        description: z.string().optional(),
+      }).parse(request.body);
+
+      if (body.type === 'OPENING_BALANCE') {
+        const date = new Date(body.entryDate); date.setHours(0, 0, 0, 0);
+        const existing = await (prisma as any).cashFlowEntry.findFirst({ where: { companyId, type: 'OPENING_BALANCE', entryDate: date } });
+        if (existing) {
+          const updated = await (prisma as any).cashFlowEntry.update({ where: { id: existing.id }, data: { amount: body.amount, description: body.description } });
+          return reply.send({ data: updated });
+        }
+      }
+
+      const finalAmount = body.type === 'MANUAL_EXPENSE' ? -Math.abs(body.amount) : Math.abs(body.amount);
+      const entry = await (prisma as any).cashFlowEntry.create({
+        data: { companyId, entryDate: new Date(body.entryDate), type: body.type, amount: finalAmount, description: body.description, createdBy: sub },
+      });
+      return reply.status(201).send({ data: entry });
+    } catch (err) { return handleError(reply, err); }
+  });
+
+  fastify.delete('/cashflow/entries/:id', { preHandler: [authenticate, requirePermission('accounting', 'delete')] }, async (request, reply) => {
+    try {
+      const { companyId } = request.user as { companyId: string };
+      const { id } = request.params as { id: string };
+      const existing = await (prisma as any).cashFlowEntry.findFirst({ where: { id, companyId } });
+      if (!existing) throw new NotFoundError('CashFlowEntry', id);
+      await (prisma as any).cashFlowEntry.delete({ where: { id } });
+      return reply.send({ message: 'Deleted' });
+    } catch (err) { return handleError(reply, err); }
+  });
 }

@@ -26,10 +26,15 @@ import { WorkOrdersPage } from './pages/processing/WorkOrdersPage';
 import { WorkOrderDetailPage } from './pages/processing/WorkOrderDetailPage';
 import { SchedulePage } from './pages/processing/SchedulePage';
 import { NestingPage } from './pages/processing/NestingPage';
+import { ProcessingDashboardPage } from './pages/processing/ProcessingDashboardPage';
+import { KanbanBoardPage } from './pages/processing/KanbanBoardPage';
+import { TimeTrackingPage } from './pages/processing/TimeTrackingPage';
 import { InvoicesPage } from './pages/accounting/InvoicesPage';
 import { ARAgeingPage } from './pages/accounting/ARAgeingPage';
 import { ChartOfAccountsPage } from './pages/accounting/ChartOfAccountsPage';
 import { AccountsPayablePage } from './pages/accounting/AccountsPayablePage';
+import { AccountingDashboardPage } from './pages/accounting/AccountingDashboardPage';
+import { CashFlowPage } from './pages/accounting/CashFlowPage';
 import { ReportingPage } from './pages/ReportingPage';
 import { UsersPage } from './pages/admin/UsersPage';
 import { AutomationPage } from './pages/admin/AutomationPage';
@@ -102,19 +107,24 @@ export default function App() {
             <Route path="suppliers" element={<SuppliersPage />} />
           </Route>
 
-          {/* Processing */}
+          {/* Processing / Orders */}
           <Route path="processing">
-            <Route index element={<WorkOrdersPage />} />
+            <Route index element={<ProcessingDashboardPage />} />
+            <Route path="dashboard" element={<ProcessingDashboardPage />} />
+            <Route path="kanban" element={<KanbanBoardPage />} />
             <Route path="work-orders" element={<WorkOrdersPage />} />
             <Route path="work-orders/:id" element={<WorkOrderDetailPage />} />
+            <Route path="time-tracking" element={<TimeTrackingPage />} />
             <Route path="schedule" element={<SchedulePage />} />
             <Route path="nesting" element={<NestingPage />} />
           </Route>
 
           {/* Accounting */}
           <Route path="accounting">
-            <Route index element={<InvoicesPage />} />
+            <Route index element={<AccountingDashboardPage />} />
+            <Route path="dashboard" element={<AccountingDashboardPage />} />
             <Route path="invoices" element={<InvoicesPage />} />
+            <Route path="cashflow" element={<CashFlowPage />} />
             <Route path="ar-ageing" element={<ARAgeingPage />} />
             <Route path="chart-of-accounts" element={<ChartOfAccountsPage />} />
             <Route path="accounts-payable" element={<AccountsPayablePage />} />

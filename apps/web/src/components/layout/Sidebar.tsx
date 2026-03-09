@@ -4,7 +4,7 @@ import {
   FileText, Wrench, DollarSign, Users, ClipboardList, QrCode,
   Factory, ChevronDown, Layers, TrendingUp, Settings,
   BookOpen, Gauge, Mail, ArrowLeftRight, FileCheck,
-  Tag, Globe, Phone, Zap, Plug,
+  Tag, Globe, Phone, Zap, Plug, Kanban, Clock, Activity,
 } from 'lucide-react';
 import { useState } from 'react';
 import clsx from 'clsx';
@@ -59,18 +59,23 @@ const NAV_OPS: NavItem[] = [
   {
     label: 'Orders', icon: Wrench,
     children: [
-      { label: 'Work Orders', to: '/processing/work-orders', icon: ClipboardList },
-      { label: 'Schedule',    to: '/processing/schedule',    icon: BarChart3 },
-      { label: 'Nesting',     to: '/processing/nesting',     icon: Layers },
+      { label: 'Dashboard',     to: '/processing/dashboard',    icon: Activity },
+      { label: 'Kanban Board',  to: '/processing/kanban',       icon: Kanban },
+      { label: 'Work Orders',   to: '/processing/work-orders',  icon: ClipboardList },
+      { label: 'Time Tracking', to: '/processing/time-tracking', icon: Clock },
+      { label: 'Schedule',      to: '/processing/schedule',     icon: BarChart3 },
+      { label: 'Nesting',       to: '/processing/nesting',      icon: Layers },
     ],
   },
   {
     label: 'Accounting', icon: DollarSign,
     children: [
-      { label: 'Invoices',           to: '/accounting/invoices',           icon: FileText },
-      { label: 'AR Ageing',          to: '/accounting/ar-ageing',          icon: TrendingUp },
-      { label: 'Accounts Payable',   to: '/accounting/accounts-payable',   icon: DollarSign },
-      { label: 'Chart of Accounts',  to: '/accounting/chart-of-accounts',  icon: BookOpen },
+      { label: 'Dashboard',         to: '/accounting/dashboard',          icon: Activity },
+      { label: 'Invoices',          to: '/accounting/invoices',           icon: FileText },
+      { label: 'Cash Flow',         to: '/accounting/cashflow',           icon: TrendingUp },
+      { label: 'AR Ageing',         to: '/accounting/ar-ageing',          icon: BarChart3 },
+      { label: 'Accounts Payable',  to: '/accounting/accounts-payable',   icon: DollarSign },
+      { label: 'Chart of Accounts', to: '/accounting/chart-of-accounts',  icon: BookOpen },
     ],
   },
   {
