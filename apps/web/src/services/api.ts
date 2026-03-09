@@ -110,12 +110,15 @@ export const inventoryApi = {
   createItem: (data: object) => api.post<InventoryItem>('/inventory/items', data),
 
   // Operations
-  adjustStock: (data: object) => api.post('/inventory/adjust', data),
-  receiveStock: (data: object) => api.post('/inventory/receive', data),
-  createTransfer: (data: object) => api.post('/inventory/transfers', data),
-  listTransfers: (params?: object) => api.get('/inventory/transfers', { params }),
-  getValuation: (params?: object) => api.get('/inventory/valuation', { params }),
-  getTransactions: (itemId: string, params?: object) => api.get(`/inventory/items/${itemId}/transactions`, { params }),
+  adjustStock:      (data: object)   => api.post('/inventory/adjust', data),
+  receiveStock:     (data: object)   => api.post('/inventory/receive', data),
+  createTransfer:   (data: object)   => api.post('/inventory/transfers', data),
+  listTransfers:    (params?: object) => api.get('/inventory/transfers', { params }),
+  getValuation:     (params?: object) => api.get('/inventory/valuation', { params }),
+  getTransactions:  (itemId: string, params?: object) => api.get(`/inventory/items/${itemId}/transactions`, { params }),
+  // Dashboard & audit
+  getDashboard:     ()               => api.get('/inventory/dashboard'),
+  listAdjustments:  (params?: object) => api.get('/inventory/adjustments', { params }),
 
   // MTRs
   listMTRs: (itemId: string) => api.get(`/inventory/items/${itemId}/mtrs`),

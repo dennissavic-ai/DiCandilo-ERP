@@ -4,6 +4,7 @@ import { Layout } from './components/layout/Layout';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { DashboardPage } from './pages/DashboardPage';
+import { InventoryDashboardPage } from './pages/inventory/InventoryDashboardPage';
 import { InventoryPage } from './pages/inventory/InventoryPage';
 import { ProductsPage } from './pages/inventory/ProductsPage';
 import { ProductDetailPage } from './pages/inventory/ProductDetailPage';
@@ -77,6 +78,7 @@ export default function App() {
           {/* Inventory */}
           <Route path="inventory">
             <Route index element={<InventoryPage />} />
+            <Route path="dashboard" element={<InventoryDashboardPage />} />
             <Route path="products" element={<ProductsPage />} />
             <Route path="products/:id" element={<ProductDetailPage />} />
             <Route path="products/:id/barcodes" element={<BarcodePrintPage />} />

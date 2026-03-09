@@ -30,13 +30,13 @@ const NAV_OPS: NavItem[] = [
   {
     label: 'Inventory', icon: Package,
     children: [
-      { label: 'Stock on Hand',  to: '/inventory',               icon: Layers },
-      { label: 'Products',       to: '/inventory/products',       icon: Package },
-      { label: 'Receive Stock',  to: '/inventory/receive',        icon: Truck },
-      { label: 'Adjust Stock',   to: '/inventory/adjust',         icon: Settings },
-      { label: 'Transfer Stock', to: '/inventory/transfer',       icon: ArrowLeftRight },
-      { label: 'Mill Test Reports', to: '/inventory/mtr',              icon: FileCheck },
-      { label: 'Auto Fulfillment',  to: '/inventory/auto-fulfillment', icon: Zap },
+      { label: 'Dashboard',        to: '/inventory/dashboard',        icon: Activity },
+      { label: 'Products',         to: '/inventory/products',         icon: Package },
+      { label: 'Stock on Hand',    to: '/inventory',                  icon: Layers },
+      { label: 'Receive Stock',    to: '/inventory/receive',          icon: Truck },
+      { label: 'Transfer Stock',   to: '/inventory/transfer',         icon: ArrowLeftRight },
+      { label: 'Auto Fulfillment', to: '/inventory/auto-fulfillment', icon: Zap },
+      { label: 'Adjust Stock',     to: '/inventory/adjust',           icon: Settings },
     ],
   },
   {
