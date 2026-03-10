@@ -2,11 +2,13 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { purchasingApi, type Supplier } from '../../services/api';
 import { Plus, Search, Factory, Phone, Mail, Globe, Edit2 } from 'lucide-react';
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Modal } from '../../components/ui/Modal';
 
 const BLANK = { code: '', name: '', legalName: '', taxId: '', paymentTerms: 30, currencyCode: 'AUD', isActive: true, contactName: '', contactEmail: '', contactPhone: '', website: '' };
 
 export function SuppliersPage() {
+  const navigate = useNavigate();
   const qc = useQueryClient();
   const [search, setSearch] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
@@ -82,7 +84,7 @@ export function SuppliersPage() {
                     <tr key={i}>{Array.from({ length: 8 }).map((__, j) => <td key={j}><div className="skeleton h-4 w-20" /></td>)}</tr>
                   ))
                 : suppliers.map((s) => (
-                    <tr key={s.id}>
+                    <tr key={s.id} className="cursor-pointer" onClick={() => navigate(`/purchasing/suppliers/${s.id}`)}>
                       <td className="font-mono text-xs font-semibold text-primary-700">{s.code}</td>
                       <td className="font-medium">{s.name}</td>
                       <td className="text-xs text-muted-foreground">{(s as any).legalName ?? '—'}</td>
@@ -98,7 +100,7 @@ export function SuppliersPage() {
                         <span className={s.isActive ? 'badge-green' : 'badge-gray'}>{s.isActive ? 'Active' : 'Inactive'}</span>
                       </td>
                       <td>
-                        <button className="btn-ghost btn-sm p-1" onClick={() => openEdit(s)}><Edit2 size={12} /></button>
+                        <button className="btn-ghost btn-sm p-1" onClick={(e) => { e.stopPropagation(); openEdit(s); }}><Edit2 size={12} /></button>
                       </td>
                     </tr>
                   ))}

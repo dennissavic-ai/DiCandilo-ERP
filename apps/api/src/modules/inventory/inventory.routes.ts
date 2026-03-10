@@ -1,5 +1,8 @@
 import { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
+import fs from 'fs';
+import path from 'path';
+import { prisma } from '../../config/database';
 import { InventoryService } from './inventory.service';
 import { authenticate, requirePermission } from '../../middleware/auth.middleware';
 import { writeAuditLog } from '../../middleware/audit.middleware';
@@ -680,5 +683,50 @@ export const inventoryRoutes: FastifyPluginAsync = async (fastify) => {
         meta: { total, limit: lim, offset: off },
       });
     } catch (err) { return handleError(reply, err); }
+  });
+
+  // ── Document Uploads ──────────────────────────────────────────────────────────
+
+  fastify.post('/documents', { preHandler: [authenticate, requirePermission('inventory', 'create')] }, async (request, reply) => {
+    try {
+      const { companyId, sub } = request.user as { companyId: string; sub: string };
+      const data = await request.file();
+      if (!data) return reply.status(400).send({ message: 'No file uploaded' });
+
+      const body = data.fields as any;
+      const sourceType = (body.sourceType?.value ?? body.sourceType ?? 'PO_RECEIPT') as string;
+      const sourceId   = (body.sourceId?.value   ?? body.sourceId   ?? '') as string;
+
+      const buffer = await data.toBuffer();
+      const ext = path.extname(data.filename) || '';
+      const fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`;
+      const uploadDir = '/uploads/documents';
+      fs.mkdirSync(uploadDir, { recursive: true });
+      fs.writeFileSync(path.join(uploadDir, fileName), buffer);
+
+      const fileUrl = `/api/inventory/documents/${fileName}`;
+      const doc = await (prisma as any).documentAttachment.create({
+        data: {
+          companyId,
+          sourceType,
+          sourceId: sourceId || null,
+          fileName: data.filename,
+          fileUrl,
+          fileSize: buffer.length,
+          mimeType: data.mimetype,
+          uploadedBy: sub,
+        },
+      });
+
+      return reply.status(201).send({ id: doc.id, fileName: doc.fileName, fileUrl: doc.fileUrl });
+    } catch (err) { return handleError(reply, err); }
+  });
+
+  fastify.get('/documents/:filename', { preHandler: [authenticate] }, async (request, reply) => {
+    const { filename } = request.params as { filename: string };
+    const filePath = path.join('/uploads/documents', path.basename(filename));
+    if (!fs.existsSync(filePath)) return reply.status(404).send({ message: 'File not found' });
+    const stream = fs.createReadStream(filePath);
+    return reply.send(stream);
   });
 };

@@ -200,6 +200,67 @@ export const accountingRoutes: FastifyPluginAsync = async (fastify) => {
     } catch (err) { return handleError(reply, err); }
   });
 
+  // Create standalone AR invoice
+  fastify.post('/invoices', { preHandler: [authenticate, requirePermission('accounting', 'create')] }, async (request, reply) => {
+    try {
+      const { companyId, sub } = request.user as { companyId: string; sub: string };
+      const body = z.object({
+        customerId: z.string().uuid(),
+        invoiceDate: z.string().optional(),
+        dueDate: z.string().optional(),
+        currency: z.string().default('AUD'),
+        notes: z.string().optional(),
+        lines: z.array(z.object({
+          description: z.string().min(1),
+          qty: z.number().positive(),
+          unitPrice: z.number().int().nonnegative(),
+        })).min(1),
+      }).parse(request.body);
+
+      const count = await prisma.invoice.count({ where: { companyId } });
+      const invoiceNumber = `INV-${String(count + 1).padStart(6, '0')}`;
+      const totalAmount = body.lines.reduce((s, l) => s + Math.round(l.qty * l.unitPrice), 0);
+      const invoiceDate = body.invoiceDate ? new Date(body.invoiceDate) : new Date();
+      const dueDate = body.dueDate ? new Date(body.dueDate) : (() => { const d = new Date(); d.setDate(d.getDate() + 30); return d; })();
+
+      const invoice = await prisma.invoice.create({
+        data: {
+          companyId,
+          customerId: body.customerId,
+          invoiceNumber,
+          invoiceDate,
+          dueDate,
+          currencyCode: body.currency,
+          subtotal: totalAmount,
+          discountAmount: 0,
+          taxAmount: 0,
+          freightAmount: 0,
+          totalAmount,
+          balanceDue: totalAmount,
+          notes: body.notes,
+          status: 'DRAFT',
+          createdBy: sub,
+          updatedBy: sub,
+          lines: {
+            create: body.lines.map((l, i) => ({
+              lineNumber: i + 1,
+              description: l.description,
+              uom: 'EA',
+              qty: l.qty,
+              unitPrice: l.unitPrice,
+              discountPct: 0,
+              lineSubtotal: Math.round(l.qty * l.unitPrice),
+              lineTotal: Math.round(l.qty * l.unitPrice),
+            })),
+          },
+        },
+        include: { lines: true },
+      });
+
+      return reply.status(201).send(invoice);
+    } catch (err) { return handleError(reply, err); }
+  });
+
   // Record customer payment — updates AR and posts GL (DR Cash / CR AR)
   fastify.post('/invoices/:id/payments', { preHandler: [authenticate, requirePermission('accounting', 'create')] }, async (request, reply) => {
     try {
@@ -303,7 +364,11 @@ export const accountingRoutes: FastifyPluginAsync = async (fastify) => {
         }),
         prisma.supplierInvoice.count({ where }),
       ]);
-      return paginatedResponse(data, total, page, limit);
+      const dataWithBalance = data.map((inv: any) => ({
+        ...inv,
+        balanceDue: Number(inv.totalAmount) - Number(inv.amountPaid),
+      }));
+      return paginatedResponse(dataWithBalance, total, page, limit);
     } catch (err) { return handleError(reply, err); }
   });
 
@@ -532,119 +597,6 @@ export const accountingRoutes: FastifyPluginAsync = async (fastify) => {
       };
     } catch (err) { return handleError(reply, err); }
   });
-};
-
-// ── GL Helper Functions ─────────────────────────────────────────────────────
-
-async function postInvoiceToGL(companyId: string, invoiceId: string, amount: number, userId: string) {
-  const now = new Date();
-  const period = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  const [arAccount, revenueAccount] = await Promise.all([
-    prisma.gLAccount.findFirst({ where: { companyId, code: '1100' } }),
-    prisma.gLAccount.findFirst({ where: { companyId, code: '4000' } }),
-  ]);
-  if (!arAccount || !revenueAccount) return;
-  const count = await prisma.journalEntry.count({ where: { companyId } });
-  await prisma.journalEntry.create({
-    data: {
-      companyId,
-      entryNumber: `JE-AUTO-${String(count + 1).padStart(6, '0')}`,
-      description: `Invoice ${invoiceId} posted`,
-      postingDate: now,
-      period,
-      createdBy: userId,
-      lines: {
-        create: [
-          { companyId, glAccountId: arAccount.id, description: 'Accounts Receivable', debitAmount: amount, creditAmount: 0, postingDate: now, period, sourceType: 'INVOICE', sourceId: invoiceId, invoiceId, createdBy: userId },
-          { companyId, glAccountId: revenueAccount.id, description: 'Sales Revenue', debitAmount: 0, creditAmount: amount, postingDate: now, period, sourceType: 'INVOICE', sourceId: invoiceId, invoiceId, createdBy: userId },
-        ],
-      },
-    },
-  });
-}
-
-/** GL: DR Cash/Bank (1000) / CR Accounts Receivable (1100) */
-async function postPaymentToGL(companyId: string, invoiceId: string, paymentId: string, amount: number, userId: string) {
-  const now = new Date();
-  const period = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  const [cashAccount, arAccount] = await Promise.all([
-    prisma.gLAccount.findFirst({ where: { companyId, code: '1000' } }),
-    prisma.gLAccount.findFirst({ where: { companyId, code: '1100' } }),
-  ]);
-  if (!cashAccount || !arAccount) return;
-  const count = await prisma.journalEntry.count({ where: { companyId } });
-  await prisma.journalEntry.create({
-    data: {
-      companyId,
-      entryNumber: `JE-AUTO-${String(count + 1).padStart(6, '0')}`,
-      description: `Customer payment received on invoice ${invoiceId}`,
-      postingDate: now,
-      period,
-      createdBy: userId,
-      lines: {
-        create: [
-          { companyId, glAccountId: cashAccount.id, description: 'Cash received', debitAmount: amount, creditAmount: 0, postingDate: now, period, sourceType: 'PAYMENT', sourceId: paymentId, paymentId, createdBy: userId },
-          { companyId, glAccountId: arAccount.id, description: 'Accounts Receivable cleared', debitAmount: 0, creditAmount: amount, postingDate: now, period, sourceType: 'PAYMENT', sourceId: paymentId, paymentId, createdBy: userId },
-        ],
-      },
-    },
-  });
-}
-
-/** GL: DR debitAccountCode (default Inventory 1200) / CR Accounts Payable (2000) */
-async function postAPInvoiceToGL(companyId: string, supplierInvId: string, amount: number, debitCode: string, userId: string) {
-  const now = new Date();
-  const period = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  const [debitAcct, apAcct] = await Promise.all([
-    prisma.gLAccount.findFirst({ where: { companyId, code: debitCode } }),
-    prisma.gLAccount.findFirst({ where: { companyId, code: '2000' } }),
-  ]);
-  if (!debitAcct || !apAcct) return;
-  const count = await prisma.journalEntry.count({ where: { companyId } });
-  await prisma.journalEntry.create({
-    data: {
-      companyId,
-      entryNumber: `JE-AUTO-${String(count + 1).padStart(6, '0')}`,
-      description: `Supplier invoice ${supplierInvId} posted`,
-      postingDate: now,
-      period,
-      createdBy: userId,
-      lines: {
-        create: [
-          { companyId, glAccountId: debitAcct.id, description: debitAcct.name, debitAmount: amount, creditAmount: 0, postingDate: now, period, sourceType: 'PO', sourceId: supplierInvId, supplierInvId, createdBy: userId },
-          { companyId, glAccountId: apAcct.id, description: 'Accounts Payable', debitAmount: 0, creditAmount: amount, postingDate: now, period, sourceType: 'PO', sourceId: supplierInvId, supplierInvId, createdBy: userId },
-        ],
-      },
-    },
-  });
-}
-
-/** GL: DR Accounts Payable (2000) / CR Cash/Bank (1000) */
-async function postAPPaymentToGL(companyId: string, supplierInvId: string, paymentId: string, amount: number, userId: string) {
-  const now = new Date();
-  const period = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  const [apAcct, cashAcct] = await Promise.all([
-    prisma.gLAccount.findFirst({ where: { companyId, code: '2000' } }),
-    prisma.gLAccount.findFirst({ where: { companyId, code: '1000' } }),
-  ]);
-  if (!apAcct || !cashAcct) return;
-  const count = await prisma.journalEntry.count({ where: { companyId } });
-  await prisma.journalEntry.create({
-    data: {
-      companyId,
-      entryNumber: `JE-AUTO-${String(count + 1).padStart(6, '0')}`,
-      description: `Supplier payment ${paymentId} on invoice ${supplierInvId}`,
-      postingDate: now,
-      period,
-      createdBy: userId,
-      lines: {
-        create: [
-          { companyId, glAccountId: apAcct.id, description: 'Accounts Payable cleared', debitAmount: amount, creditAmount: 0, postingDate: now, period, sourceType: 'PAYMENT', sourceId: paymentId, createdBy: userId },
-          { companyId, glAccountId: cashAcct.id, description: 'Cash paid to supplier', debitAmount: 0, creditAmount: amount, postingDate: now, period, sourceType: 'PAYMENT', sourceId: paymentId, createdBy: userId },
-        ],
-      },
-    },
-  });
 
   // ── Accounting Dashboard ────────────────────────────────────────────────────
 
@@ -652,7 +604,6 @@ async function postAPPaymentToGL(companyId: string, supplierInvId: string, payme
     try {
       const { companyId } = request.user as { companyId: string };
       const now = new Date();
-
       const twelveMonthsAgo = new Date(now);
       twelveMonthsAgo.setMonth(now.getMonth() - 11);
       twelveMonthsAgo.setDate(1);
@@ -674,7 +625,6 @@ async function postAPPaymentToGL(companyId: string, supplierInvId: string, payme
         orderBy: { invoiceDate: 'asc' },
       });
 
-      // Monthly revenue buckets
       const monthlyRevenue: Record<string, { month: string; invoiced: number; received: number }> = {};
       for (let i = 0; i < 12; i++) {
         const d = new Date(twelveMonthsAgo);
@@ -794,4 +744,121 @@ async function postAPPaymentToGL(companyId: string, supplierInvId: string, payme
       return reply.send({ message: 'Deleted' });
     } catch (err) { return handleError(reply, err); }
   });
+};
+
+// ── GL Helper Functions ─────────────────────────────────────────────────────
+
+async function postInvoiceToGL(companyId: string, invoiceId: string, amount: number, userId: string) {
+  const now = new Date();
+  const period = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const [arAccount, revenueAccount] = await Promise.all([
+    prisma.gLAccount.findFirst({ where: { companyId, code: '1100' } }),
+    prisma.gLAccount.findFirst({ where: { companyId, code: '4000' } }),
+  ]);
+  if (!arAccount || !revenueAccount) return;
+  const count = await prisma.journalEntry.count({ where: { companyId } });
+  await prisma.journalEntry.create({
+    data: {
+      companyId,
+      entryNumber: `JE-AUTO-${String(count + 1).padStart(6, '0')}`,
+      description: `Invoice ${invoiceId} posted`,
+      postingDate: now,
+      period,
+      createdBy: userId,
+      lines: {
+        create: [
+          { companyId, glAccountId: arAccount.id, description: 'Accounts Receivable', debitAmount: amount, creditAmount: 0, postingDate: now, period, sourceType: 'INVOICE', sourceId: invoiceId, invoiceId, createdBy: userId },
+          { companyId, glAccountId: revenueAccount.id, description: 'Sales Revenue', debitAmount: 0, creditAmount: amount, postingDate: now, period, sourceType: 'INVOICE', sourceId: invoiceId, invoiceId, createdBy: userId },
+        ],
+      },
+    },
+  });
 }
+
+/** GL: DR Cash/Bank (1000) / CR Accounts Receivable (1100) */
+async function postPaymentToGL(companyId: string, invoiceId: string, paymentId: string, amount: number, userId: string) {
+  const now = new Date();
+  const period = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const [cashAccount, arAccount] = await Promise.all([
+    prisma.gLAccount.findFirst({ where: { companyId, code: '1000' } }),
+    prisma.gLAccount.findFirst({ where: { companyId, code: '1100' } }),
+  ]);
+  if (!cashAccount || !arAccount) return;
+  const count = await prisma.journalEntry.count({ where: { companyId } });
+  await prisma.journalEntry.create({
+    data: {
+      companyId,
+      entryNumber: `JE-AUTO-${String(count + 1).padStart(6, '0')}`,
+      description: `Customer payment received on invoice ${invoiceId}`,
+      postingDate: now,
+      period,
+      createdBy: userId,
+      lines: {
+        create: [
+          { companyId, glAccountId: cashAccount.id, description: 'Cash received', debitAmount: amount, creditAmount: 0, postingDate: now, period, sourceType: 'PAYMENT', sourceId: paymentId, paymentId, createdBy: userId },
+          { companyId, glAccountId: arAccount.id, description: 'Accounts Receivable cleared', debitAmount: 0, creditAmount: amount, postingDate: now, period, sourceType: 'PAYMENT', sourceId: paymentId, paymentId, createdBy: userId },
+        ],
+      },
+    },
+  });
+}
+
+/** GL: DR debitAccountCode (default Inventory 1200) / CR Accounts Payable (2000) */
+async function postAPInvoiceToGL(companyId: string, supplierInvId: string, amount: number, debitCode: string, userId: string) {
+  const now = new Date();
+  const period = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const [debitAcct, apAcct] = await Promise.all([
+    prisma.gLAccount.findFirst({ where: { companyId, code: debitCode } }),
+    prisma.gLAccount.findFirst({ where: { companyId, code: '2000' } }),
+  ]);
+  if (!debitAcct || !apAcct) return;
+  const count = await prisma.journalEntry.count({ where: { companyId } });
+  await prisma.journalEntry.create({
+    data: {
+      companyId,
+      entryNumber: `JE-AUTO-${String(count + 1).padStart(6, '0')}`,
+      description: `Supplier invoice ${supplierInvId} posted`,
+      postingDate: now,
+      period,
+      createdBy: userId,
+      lines: {
+        create: [
+          { companyId, glAccountId: debitAcct.id, description: debitAcct.name, debitAmount: amount, creditAmount: 0, postingDate: now, period, sourceType: 'PO', sourceId: supplierInvId, supplierInvId, createdBy: userId },
+          { companyId, glAccountId: apAcct.id, description: 'Accounts Payable', debitAmount: 0, creditAmount: amount, postingDate: now, period, sourceType: 'PO', sourceId: supplierInvId, supplierInvId, createdBy: userId },
+        ],
+      },
+    },
+  });
+}
+
+/** GL: DR Accounts Payable (2000) / CR Cash/Bank (1000) */
+async function postAPPaymentToGL(companyId: string, supplierInvId: string, paymentId: string, amount: number, userId: string) {
+  const now = new Date();
+  const period = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const [apAcct, cashAcct] = await Promise.all([
+    prisma.gLAccount.findFirst({ where: { companyId, code: '2000' } }),
+    prisma.gLAccount.findFirst({ where: { companyId, code: '1000' } }),
+  ]);
+  if (!apAcct || !cashAcct) return;
+  const count = await prisma.journalEntry.count({ where: { companyId } });
+  await prisma.journalEntry.create({
+    data: {
+      companyId,
+      entryNumber: `JE-AUTO-${String(count + 1).padStart(6, '0')}`,
+      description: `Supplier payment ${paymentId} on invoice ${supplierInvId}`,
+      postingDate: now,
+      period,
+      createdBy: userId,
+      lines: {
+        create: [
+          { companyId, glAccountId: apAcct.id, description: 'Accounts Payable cleared', debitAmount: amount, creditAmount: 0, postingDate: now, period, sourceType: 'PAYMENT', sourceId: paymentId, createdBy: userId },
+          { companyId, glAccountId: cashAcct.id, description: 'Cash paid to supplier', debitAmount: 0, creditAmount: amount, postingDate: now, period, sourceType: 'PAYMENT', sourceId: paymentId, createdBy: userId },
+        ],
+      },
+    },
+  });
+}
+
+// ── END OF GL HELPERS ────────────────────────────────────────────────────────
+// (Accounting Dashboard and Cash Flow routes are registered inside accountingRoutes above)
+

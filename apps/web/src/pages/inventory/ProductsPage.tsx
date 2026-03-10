@@ -1,6 +1,6 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { inventoryApi } from '../../services/api';
-import { Plus, Search, SlidersHorizontal, Package, Tag, Layers, Upload } from 'lucide-react';
+import { Plus, Search, SlidersHorizontal, Package, Tag, Layers, Upload, X } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ImportModal } from '../../components/ui/ImportModal';
@@ -44,14 +44,37 @@ const PRODUCT_COLUMNS = [
   { key: 'requiresMtr',  label: 'Requires MTR',   required: false, example: 'false' },
 ];
 
+const EMPTY_FORM = {
+  code: '', description: '', uom: '', materialType: '', grade: '', shape: '',
+  standardCost: '', listPrice: '',
+  isBought: true, isSold: true, isStocked: true, trackByHeat: false, requiresMtr: false,
+};
+
 export function ProductsPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [importOpen, setImportOpen] = useState(false);
+  const [newOpen, setNewOpen] = useState(false);
+  const [form, setForm] = useState({ ...EMPTY_FORM });
+  const [formError, setFormError] = useState('');
 
   const { data, isLoading } = useQuery({
     queryKey: ['products'],
     queryFn: () => inventoryApi.getProducts({ limit: 100 }).then((r) => r.data),
+  });
+
+  const createMutation = useMutation({
+    mutationFn: (payload: object) => inventoryApi.createProduct(payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      setNewOpen(false);
+      setForm({ ...EMPTY_FORM });
+      setFormError('');
+    },
+    onError: (err: any) => {
+      setFormError(err?.response?.data?.message ?? 'Failed to create product.');
+    },
   });
 
   const products = (data?.data ?? []).filter(
@@ -60,6 +83,20 @@ export function ProductsPage() {
       p.code.toLowerCase().includes(search.toLowerCase()) ||
       p.description.toLowerCase().includes(search.toLowerCase()),
   );
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!form.code || !form.description || !form.uom) {
+      setFormError('Code, Description, and UOM are required.');
+      return;
+    }
+    setFormError('');
+    createMutation.mutate({
+      ...form,
+      standardCost: form.standardCost ? Math.round(parseFloat(form.standardCost) * 100) : 0,
+      listPrice:    form.listPrice    ? Math.round(parseFloat(form.listPrice)    * 100) : 0,
+    });
+  }
 
   return (
     <div className="max-w-[1400px] mx-auto animate-fade-in">
@@ -76,7 +113,7 @@ export function ProductsPage() {
           <button className="btn-secondary btn-sm">
             <SlidersHorizontal size={13} /> Filters
           </button>
-          <button className="btn-primary btn-sm">
+          <button className="btn-primary btn-sm" onClick={() => setNewOpen(true)}>
             <Plus size={14} /> New Product
           </button>
         </div>
@@ -180,6 +217,73 @@ export function ProductsPage() {
         columns={PRODUCT_COLUMNS}
         queryKey="products"
       />
+
+      {/* New Product Modal */}
+      {newOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-5 py-4 border-b">
+              <h2 className="font-semibold text-base">New Product</h2>
+              <button onClick={() => { setNewOpen(false); setFormError(''); }} className="text-steel-400 hover:text-foreground"><X size={16} /></button>
+            </div>
+            <form onSubmit={handleSubmit} className="px-5 py-4 space-y-3">
+              {formError && <p className="text-sm text-red-600">{formError}</p>}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="form-label">SKU Code *</label>
+                  <input className="input" value={form.code} onChange={e => setForm(f => ({ ...f, code: e.target.value }))} placeholder="MS-PLATE-6-2400" />
+                </div>
+                <div>
+                  <label className="form-label">UOM *</label>
+                  <input className="input" value={form.uom} onChange={e => setForm(f => ({ ...f, uom: e.target.value }))} placeholder="EA / M2 / KG" />
+                </div>
+              </div>
+              <div>
+                <label className="form-label">Description *</label>
+                <input className="input" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="6mm Mild Steel Plate 2400x1200" />
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="form-label">Material Type</label>
+                  <input className="input" value={form.materialType} onChange={e => setForm(f => ({ ...f, materialType: e.target.value }))} placeholder="steel" />
+                </div>
+                <div>
+                  <label className="form-label">Grade</label>
+                  <input className="input" value={form.grade} onChange={e => setForm(f => ({ ...f, grade: e.target.value }))} placeholder="350" />
+                </div>
+                <div>
+                  <label className="form-label">Shape</label>
+                  <input className="input" value={form.shape} onChange={e => setForm(f => ({ ...f, shape: e.target.value }))} placeholder="plate" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="form-label">Std Cost ($)</label>
+                  <input className="input" type="number" step="0.01" value={form.standardCost} onChange={e => setForm(f => ({ ...f, standardCost: e.target.value }))} placeholder="85.00" />
+                </div>
+                <div>
+                  <label className="form-label">List Price ($)</label>
+                  <input className="input" type="number" step="0.01" value={form.listPrice} onChange={e => setForm(f => ({ ...f, listPrice: e.target.value }))} placeholder="120.00" />
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-4 pt-1">
+                {(['isBought', 'isSold', 'isStocked', 'trackByHeat', 'requiresMtr'] as const).map(key => (
+                  <label key={key} className="flex items-center gap-1.5 text-sm cursor-pointer">
+                    <input type="checkbox" checked={form[key] as boolean} onChange={e => setForm(f => ({ ...f, [key]: e.target.checked }))} />
+                    {key === 'isBought' ? 'Is Bought' : key === 'isSold' ? 'Is Sold' : key === 'isStocked' ? 'Is Stocked' : key === 'trackByHeat' ? 'Track by Heat' : 'Requires MTR'}
+                  </label>
+                ))}
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button type="button" className="btn-secondary btn-sm" onClick={() => { setNewOpen(false); setFormError(''); }}>Cancel</button>
+                <button type="submit" className="btn-primary btn-sm" disabled={createMutation.isPending}>
+                  {createMutation.isPending ? 'Creating…' : 'Create Product'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

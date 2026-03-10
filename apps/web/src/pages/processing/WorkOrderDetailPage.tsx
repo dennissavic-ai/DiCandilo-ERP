@@ -44,7 +44,7 @@ export function WorkOrderDetailPage() {
   });
 
   const timeMutation = useMutation({
-    mutationFn: () => processingApi.logTime(id!, timeForm),
+    mutationFn: () => processingApi.addTimeEntry({ workOrderId: id!, ...timeForm }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['work-order', id] }); setTimeOpen(false); setTimeForm({ hours: '', notes: '' }); },
   });
 

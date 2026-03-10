@@ -252,13 +252,14 @@ model Supplier {
   paymentTerms    Int       @default(30)
   billingAddress  Json?
   contacts        Json      @default("[]")
-  notes           String?
-  isActive        Boolean   @default(true)
-  deletedAt       DateTime?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  createdBy       String?
-  updatedBy       String?
+  notes               String?
+  interactionNotes    Json      @default("[]")
+  isActive            Boolean   @default(true)
+  deletedAt           DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  createdBy           String?
+  updatedBy           String?
 
   purchaseOrders       PurchaseOrder[]
   invoices             SupplierInvoice[]
@@ -1750,4 +1751,22 @@ model CashFlowEntry {
   createdBy   String?
 
   @@index([companyId, entryDate])
+}
+
+// ─── DOCUMENT ATTACHMENTS ─────────────────────────────────────────────────────
+
+/// Generic document/file attachment. Attached to any source entity via sourceType + sourceId.
+model DocumentAttachment {
+  id          String   @id @default(uuid())
+  companyId   String
+  sourceType  String   // 'PO_RECEIPT' | 'PURCHASE_ORDER' | 'SALES_ORDER'
+  sourceId    String
+  fileName    String
+  fileUrl     String
+  fileSize    Int?
+  mimeType    String?
+  uploadedBy  String?
+  createdAt   DateTime @default(now())
+
+  @@index([companyId, sourceType, sourceId])
 }
