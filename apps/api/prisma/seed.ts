@@ -206,46 +206,45 @@ async function main() {
 
   // ── Sample Products ───────────────────────────────────────────────────────
   const products = [
-    {
-      code: 'HR-PLT-6X1500X3000', categoryId: catFlat.id,
-      description: 'Hot Rolled Plate 6mm x 1500mm x 3000mm',
-      uom: 'EA', materialType: 'steel', grade: 'A36', shape: 'plate',
-      standardThickness: 6, standardWidth: 1500, standardLength: 3000,
-      weightPerMeter: 47100, costMethod: CostMethod.AVERAGE,
-      standardCost: 18000, listPrice: 24000, isBought: true, isSold: true, isStocked: true,
-    },
-    {
-      code: 'SS-RHS-50X50X3', categoryId: catTube.id,
-      description: '304 Stainless RHS 50x50x3mm',
-      uom: 'M', materialType: 'stainless', grade: '304', alloy: 'L', shape: 'RHS',
-      standardThickness: 3, standardWidth: 50, standardLength: 6000,
-      weightPerMeter: 4390, costMethod: CostMethod.FIFO,
-      standardCost: 3500, listPrice: 4800, isBought: true, isSold: true, isStocked: true, trackByHeat: true, requiresMtr: true,
-    },
-    {
-      code: 'AL-FLAT-3X300X2400', categoryId: catFlat.id,
-      description: '6061-T6 Aluminium Flat Bar 3mm x 300mm x 2400mm',
-      uom: 'EA', materialType: 'aluminum', grade: '6061', alloy: 'T6', shape: 'flat',
-      standardThickness: 3, standardWidth: 300, standardLength: 2400,
-      weightPerMeter: 2430, costMethod: CostMethod.AVERAGE,
-      standardCost: 9500, listPrice: 13000, isBought: true, isSold: true, isStocked: true,
-    },
-    {
-      code: 'CR-SHT-2X1200X2400', categoryId: catFlat.id,
-      description: 'Cold Rolled Sheet 2mm x 1200mm x 2400mm',
-      uom: 'EA', materialType: 'steel', grade: 'CQ', shape: 'sheet', finish: 'cold rolled',
-      standardThickness: 2, standardWidth: 1200, standardLength: 2400,
-      weightPerMeter: 15700, costMethod: CostMethod.FIFO,
-      standardCost: 8500, listPrice: 11500, isBought: true, isSold: true, isStocked: true,
-    },
-    {
-      code: 'MS-RND-50', categoryId: catLong.id,
-      description: 'Mild Steel Round Bar 50mm Dia x 6000mm',
-      uom: 'M', materialType: 'steel', grade: '1020', shape: 'round bar',
-      standardWidth: 50, standardLength: 6000,
-      weightPerMeter: 15400, costMethod: CostMethod.AVERAGE,
-      standardCost: 1200, listPrice: 1650, isBought: true, isSold: true, isStocked: true, reorderPoint: 50,
-    },
+    // Flat / Plate
+    { code: 'HR-PLT-6X1500X3000', categoryId: catFlat.id, description: 'Hot Rolled Plate 6mm x 1500 x 3000mm', uom: 'EA', materialType: 'steel', grade: 'A36', shape: 'plate', standardThickness: 6, standardWidth: 1500, standardLength: 3000, weightPerMeter: 47100, costMethod: CostMethod.AVERAGE, standardCost: 18000, listPrice: 24000, isBought: true, isSold: true, isStocked: true },
+    { code: 'HR-PLT-10X1500X3000', categoryId: catFlat.id, description: 'Hot Rolled Plate 10mm x 1500 x 3000mm', uom: 'EA', materialType: 'steel', grade: 'A36', shape: 'plate', standardThickness: 10, standardWidth: 1500, standardLength: 3000, weightPerMeter: 78500, costMethod: CostMethod.AVERAGE, standardCost: 29500, listPrice: 39000, isBought: true, isSold: true, isStocked: true },
+    { code: 'HR-PLT-16X2000X6000', categoryId: catFlat.id, description: 'Hot Rolled Plate 16mm x 2000 x 6000mm', uom: 'EA', materialType: 'steel', grade: '350', shape: 'plate', standardThickness: 16, standardWidth: 2000, standardLength: 6000, weightPerMeter: 251200, costMethod: CostMethod.AVERAGE, standardCost: 92000, listPrice: 118000, isBought: true, isSold: true, isStocked: true, trackByHeat: true, requiresMtr: true },
+    { code: 'HR-PLT-25X2000X6000', categoryId: catFlat.id, description: 'Hot Rolled Plate 25mm x 2000 x 6000mm', uom: 'EA', materialType: 'steel', grade: '350', shape: 'plate', standardThickness: 25, standardWidth: 2000, standardLength: 6000, weightPerMeter: 392500, costMethod: CostMethod.AVERAGE, standardCost: 145000, listPrice: 188000, isBought: true, isSold: true, isStocked: true, trackByHeat: true, requiresMtr: true },
+    // Sheet
+    { code: 'CR-SHT-2X1200X2400', categoryId: catFlat.id, description: 'Cold Rolled Sheet 2mm x 1200 x 2400mm', uom: 'EA', materialType: 'steel', grade: 'CQ', shape: 'sheet', finish: 'cold rolled', standardThickness: 2, standardWidth: 1200, standardLength: 2400, weightPerMeter: 15700, costMethod: CostMethod.FIFO, standardCost: 8500, listPrice: 11500, isBought: true, isSold: true, isStocked: true },
+    { code: 'GI-SHT-1.6X1200X2400', categoryId: catFlat.id, description: 'Galvanised Sheet 1.6mm x 1200 x 2400mm', uom: 'EA', materialType: 'steel', grade: 'G300', shape: 'sheet', coating: 'galvanised', standardThickness: 2, standardWidth: 1200, standardLength: 2400, weightPerMeter: 12000, costMethod: CostMethod.AVERAGE, standardCost: 9200, listPrice: 12500, isBought: true, isSold: true, isStocked: true },
+    { code: 'SS-SHT-2X1200X2400', categoryId: catFlat.id, description: '316L Stainless Sheet 2mm x 1200 x 2400mm', uom: 'EA', materialType: 'stainless', grade: '316L', shape: 'sheet', standardThickness: 2, standardWidth: 1200, standardLength: 2400, weightPerMeter: 15700, costMethod: CostMethod.FIFO, standardCost: 31000, listPrice: 42000, isBought: true, isSold: true, isStocked: true, trackByHeat: true, requiresMtr: true },
+    // Flat Bar
+    { code: 'AL-FLAT-3X300X2400', categoryId: catFlat.id, description: '6061-T6 Aluminium Flat Bar 3mm x 300 x 2400mm', uom: 'EA', materialType: 'aluminum', grade: '6061', alloy: 'T6', shape: 'flat', standardThickness: 3, standardWidth: 300, standardLength: 2400, weightPerMeter: 2430, costMethod: CostMethod.AVERAGE, standardCost: 9500, listPrice: 13000, isBought: true, isSold: true, isStocked: true },
+    { code: 'MS-FLAT-6X50X6000', categoryId: catFlat.id, description: 'Mild Steel Flat Bar 6mm x 50mm x 6000mm', uom: 'M', materialType: 'steel', grade: 'G250', shape: 'flat', standardThickness: 6, standardWidth: 50, standardLength: 6000, weightPerMeter: 2360, costMethod: CostMethod.AVERAGE, standardCost: 380, listPrice: 520, isBought: true, isSold: true, isStocked: true, reorderPoint: 100 },
+    { code: 'MS-FLAT-10X75X6000', categoryId: catFlat.id, description: 'Mild Steel Flat Bar 10mm x 75mm x 6000mm', uom: 'M', materialType: 'steel', grade: 'G250', shape: 'flat', standardThickness: 10, standardWidth: 75, standardLength: 6000, weightPerMeter: 5890, costMethod: CostMethod.AVERAGE, standardCost: 880, listPrice: 1180, isBought: true, isSold: true, isStocked: true, reorderPoint: 60 },
+    // Round Bar
+    { code: 'MS-RND-20', categoryId: catLong.id, description: 'Mild Steel Round Bar 20mm Dia x 6000mm', uom: 'M', materialType: 'steel', grade: '1020', shape: 'round bar', standardWidth: 20, standardLength: 6000, weightPerMeter: 2470, costMethod: CostMethod.AVERAGE, standardCost: 380, listPrice: 510, isBought: true, isSold: true, isStocked: true, reorderPoint: 100 },
+    { code: 'MS-RND-50', categoryId: catLong.id, description: 'Mild Steel Round Bar 50mm Dia x 6000mm', uom: 'M', materialType: 'steel', grade: '1020', shape: 'round bar', standardWidth: 50, standardLength: 6000, weightPerMeter: 15400, costMethod: CostMethod.AVERAGE, standardCost: 1200, listPrice: 1650, isBought: true, isSold: true, isStocked: true, reorderPoint: 50 },
+    { code: 'MS-RND-75', categoryId: catLong.id, description: 'Mild Steel Round Bar 75mm Dia x 6000mm', uom: 'M', materialType: 'steel', grade: '1020', shape: 'round bar', standardWidth: 75, standardLength: 6000, weightPerMeter: 34700, costMethod: CostMethod.AVERAGE, standardCost: 2600, listPrice: 3500, isBought: true, isSold: true, isStocked: true, trackByHeat: true, requiresMtr: true },
+    { code: 'SS-RND-25', categoryId: catLong.id, description: '316 Stainless Round Bar 25mm Dia x 3000mm', uom: 'M', materialType: 'stainless', grade: '316', shape: 'round bar', standardWidth: 25, standardLength: 3000, weightPerMeter: 3850, costMethod: CostMethod.FIFO, standardCost: 2100, listPrice: 2900, isBought: true, isSold: true, isStocked: true, trackByHeat: true, requiresMtr: true },
+    // RHS / SHS Tube
+    { code: 'MS-RHS-50X25X2', categoryId: catTube.id, description: 'Mild Steel RHS 50x25x2mm x 8000mm', uom: 'M', materialType: 'steel', grade: 'C350L0', shape: 'RHS', standardThickness: 2, standardWidth: 50, standardLength: 8000, weightPerMeter: 1830, costMethod: CostMethod.AVERAGE, standardCost: 285, listPrice: 390, isBought: true, isSold: true, isStocked: true, reorderPoint: 200 },
+    { code: 'MS-RHS-100X50X3', categoryId: catTube.id, description: 'Mild Steel RHS 100x50x3mm x 8000mm', uom: 'M', materialType: 'steel', grade: 'C350L0', shape: 'RHS', standardThickness: 3, standardWidth: 100, standardLength: 8000, weightPerMeter: 6710, costMethod: CostMethod.AVERAGE, standardCost: 960, listPrice: 1300, isBought: true, isSold: true, isStocked: true, reorderPoint: 100 },
+    { code: 'MS-SHS-75X75X3', categoryId: catTube.id, description: 'Mild Steel SHS 75x75x3mm x 8000mm', uom: 'M', materialType: 'steel', grade: 'C350L0', shape: 'RHS', standardThickness: 3, standardWidth: 75, standardLength: 8000, weightPerMeter: 6440, costMethod: CostMethod.AVERAGE, standardCost: 920, listPrice: 1250, isBought: true, isSold: true, isStocked: true, reorderPoint: 80 },
+    { code: 'SS-RHS-50X50X3', categoryId: catTube.id, description: '304 Stainless RHS 50x50x3mm x 6000mm', uom: 'M', materialType: 'stainless', grade: '304', alloy: 'L', shape: 'RHS', standardThickness: 3, standardWidth: 50, standardLength: 6000, weightPerMeter: 4390, costMethod: CostMethod.FIFO, standardCost: 3500, listPrice: 4800, isBought: true, isSold: true, isStocked: true, trackByHeat: true, requiresMtr: true },
+    // CHS Pipe
+    { code: 'MS-CHS-48.3X3.2', categoryId: catTube.id, description: 'Mild Steel CHS 48.3mm OD x 3.2mm x 6000mm', uom: 'M', materialType: 'steel', grade: 'C350L0', shape: 'pipe', standardThickness: 3, standardWidth: 48, standardLength: 6000, weightPerMeter: 3560, costMethod: CostMethod.AVERAGE, standardCost: 520, listPrice: 710, isBought: true, isSold: true, isStocked: true },
+    { code: 'MS-CHS-76X3.2', categoryId: catTube.id, description: 'Mild Steel CHS 76.1mm OD x 3.2mm x 6000mm', uom: 'M', materialType: 'steel', grade: 'C350L0', shape: 'pipe', standardThickness: 3, standardWidth: 76, standardLength: 6000, weightPerMeter: 5750, costMethod: CostMethod.AVERAGE, standardCost: 840, listPrice: 1140, isBought: true, isSold: true, isStocked: true },
+    // Angle
+    { code: 'MS-ANG-65X65X6', categoryId: catLong.id, description: 'Mild Steel Angle 65x65x6mm x 6000mm', uom: 'M', materialType: 'steel', grade: 'G300', shape: 'structural', standardThickness: 6, standardWidth: 65, standardLength: 6000, weightPerMeter: 5730, costMethod: CostMethod.AVERAGE, standardCost: 830, listPrice: 1120, isBought: true, isSold: true, isStocked: true, reorderPoint: 60 },
+    { code: 'MS-ANG-100X100X8', categoryId: catLong.id, description: 'Mild Steel Angle 100x100x8mm x 9000mm', uom: 'M', materialType: 'steel', grade: 'G350', shape: 'structural', standardThickness: 8, standardWidth: 100, standardLength: 9000, weightPerMeter: 12200, costMethod: CostMethod.AVERAGE, standardCost: 1750, listPrice: 2350, isBought: true, isSold: true, isStocked: true, reorderPoint: 40 },
+    // Channel
+    { code: 'MS-PFC-100X50', categoryId: catLong.id, description: 'Mild Steel PFC 100x50mm x 9000mm', uom: 'M', materialType: 'steel', grade: 'G350', shape: 'structural', standardWidth: 100, standardLength: 9000, weightPerMeter: 10700, costMethod: CostMethod.AVERAGE, standardCost: 1580, listPrice: 2120, isBought: true, isSold: true, isStocked: true },
+    { code: 'MS-PFC-150X75', categoryId: catLong.id, description: 'Mild Steel PFC 150x75mm x 9000mm', uom: 'M', materialType: 'steel', grade: 'G350', shape: 'structural', standardWidth: 150, standardLength: 9000, weightPerMeter: 18000, costMethod: CostMethod.AVERAGE, standardCost: 2650, listPrice: 3550, isBought: true, isSold: true, isStocked: true },
+    // Beam
+    { code: 'MS-UB-150X14', categoryId: catLong.id, description: 'Universal Beam 150 UB 14 x 9000mm', uom: 'M', materialType: 'steel', grade: 'G300', shape: 'structural', standardWidth: 150, standardLength: 9000, weightPerMeter: 14200, costMethod: CostMethod.AVERAGE, standardCost: 2100, listPrice: 2850, isBought: true, isSold: true, isStocked: true },
+    { code: 'MS-UB-200X25', categoryId: catLong.id, description: 'Universal Beam 200 UB 25 x 9000mm', uom: 'M', materialType: 'steel', grade: 'G300', shape: 'structural', standardWidth: 200, standardLength: 9000, weightPerMeter: 25100, costMethod: CostMethod.AVERAGE, standardCost: 3680, listPrice: 4950, isBought: true, isSold: true, isStocked: true, reorderPoint: 20 },
+    { code: 'MS-UC-150X23', categoryId: catLong.id, description: 'Universal Column 150 UC 23 x 6000mm', uom: 'M', materialType: 'steel', grade: 'G300', shape: 'structural', standardWidth: 150, standardLength: 6000, weightPerMeter: 23400, costMethod: CostMethod.AVERAGE, standardCost: 3400, listPrice: 4600, isBought: true, isSold: true, isStocked: true },
+    // Aluminium Misc
+    { code: 'AL-SHS-50X50X3', categoryId: catTube.id, description: '6061-T6 Aluminium SHS 50x50x3mm x 6000mm', uom: 'M', materialType: 'aluminum', grade: '6061', alloy: 'T6', shape: 'RHS', standardThickness: 3, standardWidth: 50, standardLength: 6000, weightPerMeter: 1390, costMethod: CostMethod.AVERAGE, standardCost: 2100, listPrice: 2900, isBought: true, isSold: true, isStocked: true },
+    { code: 'AL-PLT-6X1200X2400', categoryId: catFlat.id, description: '5083-H111 Aluminium Plate 6mm x 1200 x 2400mm', uom: 'EA', materialType: 'aluminum', grade: '5083', alloy: 'H111', shape: 'plate', standardThickness: 6, standardWidth: 1200, standardLength: 2400, weightPerMeter: 16200, costMethod: CostMethod.FIFO, standardCost: 34000, listPrice: 46000, isBought: true, isSold: true, isStocked: true, requiresMtr: true },
   ];
 
   const createdProducts: { id: string; code: string }[] = [];
@@ -615,6 +614,88 @@ async function main() {
     }
   }
   console.log('✔ AP Invoices seeded: 10');
+
+  // ── Shipping Manifests ────────────────────────────────────────────────────
+  const carriers = ['Toll', 'TNT', 'Startrack', 'Linfox', 'Border Express', 'Direct Freight'];
+  const shipStatuses = ['DELIVERED', 'DELIVERED', 'DELIVERED', 'DISPATCHED', 'DISPATCHED', 'CONFIRMED', 'DRAFT'];
+  const createdSOs = await prisma.salesOrder.findMany({ where: { companyId: company.id }, take: 12, include: { customer: true } });
+  let manifestCount = 0;
+  for (let i = 0; i < Math.min(10, createdSOs.length); i++) {
+    const so = createdSOs[i];
+    const status = shipStatuses[i % shipStatuses.length] as 'DELIVERED' | 'DISPATCHED' | 'CONFIRMED' | 'DRAFT';
+    const dispatchDate = daysFromNow(-30 + i * 3);
+    const mNum = `MAN-${String(i + 1).padStart(6, '0')}`;
+    const existing = await (prisma as any).shipmentManifest.findFirst({ where: { companyId: company.id, manifestNumber: mNum } });
+    if (!existing) {
+      await (prisma as any).shipmentManifest.create({
+        data: {
+          companyId: company.id,
+          salesOrderId: so.id,
+          manifestNumber: mNum,
+          status,
+          dispatchDate,
+          deliveredDate: status === 'DELIVERED' ? new Date(dispatchDate.getTime() + 2 * 24 * 60 * 60 * 1000) : null,
+          carrier: carriers[i % carriers.length],
+          trackingNumber: status !== 'DRAFT' ? `TRK${String(100000 + i * 7).padStart(8, '0')}` : null,
+          deliveryAddress: `${so.customer.name}, 123 Industrial Ave, Perth WA 6000`,
+          notes: `Delivery for ${so.orderNumber}`,
+          createdBy: adminUser.id,
+          updatedBy: adminUser.id,
+        },
+      });
+      manifestCount++;
+    }
+  }
+  console.log('✔ Shipping manifests seeded:', manifestCount);
+
+  // ── CRM Call Reports ──────────────────────────────────────────────────────
+  const prospects = await (prisma as any).prospect.findMany({ where: { companyId: company.id }, take: 20 });
+  const callTypes = ['CALL', 'EMAIL', 'MEETING', 'VISIT'];
+  const callOutcomes = ['Interested, following up', 'Requested quote', 'Not ready yet', 'Strong interest', 'Meeting scheduled', 'Awaiting decision'];
+  let callReportCount = 0;
+  for (let i = 0; i < Math.min(15, prospects.length); i++) {
+    const prospect = prospects[i];
+    const existing = await (prisma as any).callReport.findFirst({ where: { prospectId: prospect.id } });
+    if (!existing) {
+      await (prisma as any).callReport.create({
+        data: {
+          companyId: company.id,
+          prospectId: prospect.id,
+          userId: adminUser.id,
+          callDate: daysFromNow(-10 + i),
+          type: callTypes[i % callTypes.length],
+          subject: `${callTypes[i % callTypes.length]} with ${prospect.contactName ?? prospect.companyName}`,
+          notes: callOutcomes[i % callOutcomes.length],
+          outcome: callOutcomes[i % callOutcomes.length],
+          createdBy: adminUser.id,
+        },
+      });
+      callReportCount++;
+    }
+  }
+  console.log('✔ CRM call reports seeded:', callReportCount);
+
+  // ── Cashflow Entries ──────────────────────────────────────────────────────
+  const cfEntries = [
+    { type: 'OPENING_BALANCE', amount: BigInt(25000000), description: 'Opening bank balance', daysOffset: -30 },
+    { type: 'MANUAL_INCOME',   amount: BigInt(4500000),  description: 'Customer payment — ACME Manufacturing', daysOffset: -25 },
+    { type: 'MANUAL_EXPENSE',  amount: BigInt(-1800000), description: 'Supplier payment — Steel Direct', daysOffset: -22 },
+    { type: 'MANUAL_INCOME',   amount: BigInt(7200000),  description: 'Customer payment — BuildRight Construction', daysOffset: -18 },
+    { type: 'MANUAL_EXPENSE',  amount: BigInt(-3200000), description: 'Payroll — Week ending', daysOffset: -14 },
+    { type: 'MANUAL_EXPENSE',  amount: BigInt(-950000),  description: 'Rent & occupancy', daysOffset: -10 },
+    { type: 'MANUAL_INCOME',   amount: BigInt(3100000),  description: 'Customer payment — SteelWorks Industries', daysOffset: -7 },
+    { type: 'MANUAL_EXPENSE',  amount: BigInt(-620000),  description: 'Insurance premium', daysOffset: -5 },
+  ];
+  for (const entry of cfEntries) {
+    const entryDate = daysFromNow(entry.daysOffset); entryDate.setHours(0, 0, 0, 0);
+    const existing = await (prisma as any).cashFlowEntry.findFirst({ where: { companyId: company.id, type: entry.type, entryDate } });
+    if (!existing) {
+      await (prisma as any).cashFlowEntry.create({
+        data: { companyId: company.id, entryDate, type: entry.type, amount: entry.amount, description: entry.description, createdBy: adminUser.id },
+      });
+    }
+  }
+  console.log('✔ Cashflow entries seeded: 8');
 
   // ── CRM Pipeline Stages ───────────────────────────────────────────────────
   const defaultStages = [
