@@ -64,7 +64,7 @@ async function main() {
     },
   });
 
-  const salesRole = await prisma.role.upsert({
+  await prisma.role.upsert({
     where: { name: 'Sales' },
     update: {},
     create: {
@@ -77,7 +77,7 @@ async function main() {
     },
   });
 
-  const warehouseRole = await prisma.role.upsert({
+  await prisma.role.upsert({
     where: { name: 'Warehouse' },
     update: {},
     create: {
@@ -90,7 +90,7 @@ async function main() {
     },
   });
 
-  const accountingRole = await prisma.role.upsert({
+  await prisma.role.upsert({
     where: { name: 'Accounting' },
     update: {},
     create: {
@@ -182,7 +182,7 @@ async function main() {
   console.log('✔ Product categories seeded');
 
   // ── Inventory Locations ───────────────────────────────────────────────────
-  const locations = [
+  const locationDefs = [
     { code: 'REC', name: 'Receiving Bay', type: LocationType.RECEIVING },
     { code: 'A01', name: 'Rack A01', type: LocationType.STORAGE },
     { code: 'A02', name: 'Rack A02', type: LocationType.STORAGE },
@@ -194,7 +194,7 @@ async function main() {
   ];
 
   let firstLocation = null;
-  for (const loc of locations) {
+  for (const loc of locationDefs) {
     const l = await prisma.inventoryLocation.upsert({
       where: { branchId_code: { branchId: mainBranch.id, code: loc.code } },
       update: {},
@@ -202,7 +202,7 @@ async function main() {
     });
     if (!firstLocation) firstLocation = l;
   }
-  console.log('✔ Inventory locations seeded:', locations.length);
+  console.log('✔ Inventory locations seeded:', locationDefs.length);
 
   // ── Sample Products ───────────────────────────────────────────────────────
   const products = [
@@ -295,34 +295,112 @@ async function main() {
     console.log('✔ Sample inventory items seeded');
   }
 
-  // ── Sample Customers ──────────────────────────────────────────────────────
-  const customers = [
-    { code: 'ACME-001', name: 'ACME Manufacturing', creditLimit: 5000000, creditTerms: 30 },
-    { code: 'BLDG-002', name: 'BuildRight Construction', creditLimit: 2500000, creditTerms: 14 },
-    { code: 'FABR-003', name: 'Precision Fabricators LLC', creditLimit: 1000000, creditTerms: 30 },
+  // ── 50 Customers ──────────────────────────────────────────────────────────
+  const customerDefs = [
+    { code: 'ACME-001', name: 'ACME Manufacturing', creditLimit: 5000000, creditTerms: 30, contacts: [{ name: 'John Smith', email: 'john@acme.com', phone: '+1 555 100 0001', isPrimary: true }] },
+    { code: 'BLDG-002', name: 'BuildRight Construction', creditLimit: 2500000, creditTerms: 14, contacts: [{ name: 'Sarah Jones', email: 'sjones@buildright.com', phone: '+1 555 100 0002', isPrimary: true }] },
+    { code: 'FABR-003', name: 'Precision Fabricators LLC', creditLimit: 1000000, creditTerms: 30, contacts: [{ name: 'Mike Chen', email: 'mike@precisionfab.com', phone: '+1 555 100 0003', isPrimary: true }] },
+    { code: 'STLW-004', name: 'SteelWorks Industries', creditLimit: 3000000, creditTerms: 30, contacts: [{ name: 'Lisa Brown', email: 'lbrown@steelworks.com', phone: '+1 555 100 0004', isPrimary: true }] },
+    { code: 'MINE-005', name: 'MineCorp Equipment', creditLimit: 8000000, creditTerms: 60, contacts: [{ name: 'Dave Wilson', email: 'dwilson@minecorp.com', phone: '+1 555 100 0005', isPrimary: true }] },
+    { code: 'RAIL-006', name: 'Pacific Rail Services', creditLimit: 4000000, creditTerms: 30, contacts: [{ name: 'Tom Andrews', email: 'tandrews@pacrail.com', phone: '+1 555 100 0006', isPrimary: true }] },
+    { code: 'HVAC-007', name: 'CoolFlow HVAC Systems', creditLimit: 750000, creditTerms: 14, contacts: [{ name: 'Emma Davis', email: 'edavis@coolflow.com', phone: '+1 555 100 0007', isPrimary: true }] },
+    { code: 'SHIP-008', name: 'Harbour Shipbuilding', creditLimit: 12000000, creditTerms: 60, contacts: [{ name: 'James Taylor', email: 'jtaylor@harbourship.com', phone: '+1 555 100 0008', isPrimary: true }] },
+    { code: 'ENGR-009', name: 'Advanced Engineering Co', creditLimit: 2000000, creditTerms: 30, contacts: [{ name: 'Rachel Kim', email: 'rkim@adveng.com', phone: '+1 555 100 0009', isPrimary: true }] },
+    { code: 'FOOD-010', name: 'FoodPro Equipment', creditLimit: 500000, creditTerms: 14, contacts: [{ name: 'Chris Martin', email: 'cmartin@foodpro.com', phone: '+1 555 100 0010', isPrimary: true }] },
+    { code: 'POWE-011', name: 'PowerGen Solutions', creditLimit: 6000000, creditTerms: 45, contacts: [{ name: 'Amanda White', email: 'awhite@powergen.com', phone: '+1 555 100 0011', isPrimary: true }] },
+    { code: 'FRAM-012', name: 'FrameTech Structures', creditLimit: 1500000, creditTerms: 21, contacts: [{ name: 'Paul Garcia', email: 'pgarcia@frametech.com', phone: '+1 555 100 0012', isPrimary: true }] },
+    { code: 'AGRI-013', name: 'AgriMech Industries', creditLimit: 900000, creditTerms: 30, contacts: [{ name: 'Susan Lee', email: 'slee@agrimech.com', phone: '+1 555 100 0013', isPrimary: true }] },
+    { code: 'AUTO-014', name: 'AutoParts Manufacturing', creditLimit: 3500000, creditTerms: 30, contacts: [{ name: 'Brian Moore', email: 'bmoore@autoparts.com', phone: '+1 555 100 0014', isPrimary: true }] },
+    { code: 'PETR-015', name: 'PetroTech Services', creditLimit: 10000000, creditTerms: 45, contacts: [{ name: 'Karen Hall', email: 'khall@petrotech.com', phone: '+1 555 100 0015', isPrimary: true }] },
+    { code: 'WELD-016', name: 'ProWeld Solutions', creditLimit: 600000, creditTerms: 14, contacts: [{ name: 'Tony Adams', email: 'tadams@proweld.com', phone: '+1 555 100 0016', isPrimary: true }] },
+    { code: 'PUMP-017', name: 'FluidFlow Pumps', creditLimit: 1200000, creditTerms: 30, contacts: [{ name: 'Nancy Clark', email: 'nclark@fluidflow.com', phone: '+1 555 100 0017', isPrimary: true }] },
+    { code: 'TANK-018', name: 'TankTech Industries', creditLimit: 2200000, creditTerms: 30, contacts: [{ name: 'Steve Rodriguez', email: 'srodriguez@tanktech.com', phone: '+1 555 100 0018', isPrimary: true }] },
+    { code: 'CONV-019', name: 'ConveyorPro Systems', creditLimit: 800000, creditTerms: 21, contacts: [{ name: 'Diane Lewis', email: 'dlewis@conveyorpro.com', phone: '+1 555 100 0019', isPrimary: true }] },
+    { code: 'GEARB-020', name: 'GearBox Engineering', creditLimit: 450000, creditTerms: 14, contacts: [{ name: 'Frank Walker', email: 'fwalker@gearbox.com', phone: '+1 555 100 0020', isPrimary: true }] },
+    { code: 'CONST-021', name: 'Apex Construction Group', creditLimit: 7000000, creditTerms: 45, contacts: [{ name: 'Helen Young', email: 'hyoung@apexcg.com', phone: '+1 555 100 0021', isPrimary: true }] },
+    { code: 'CRANE-022', name: 'LiftRight Cranes', creditLimit: 5500000, creditTerms: 30, contacts: [{ name: 'Gary Harris', email: 'gharris@liftright.com', phone: '+1 555 100 0022', isPrimary: true }] },
+    { code: 'PRES-023', name: 'PressureVessel Co', creditLimit: 1800000, creditTerms: 30, contacts: [{ name: 'Olivia Scott', email: 'oscott@pressvessel.com', phone: '+1 555 100 0023', isPrimary: true }] },
+    { code: 'SAFE-024', name: 'SafeGuard Enclosures', creditLimit: 350000, creditTerms: 14, contacts: [{ name: 'Mark Thompson', email: 'mthompson@safeguard.com', phone: '+1 555 100 0024', isPrimary: true }] },
+    { code: 'GATE-025', name: 'GateWay Structures', creditLimit: 950000, creditTerms: 21, contacts: [{ name: 'Patricia King', email: 'pking@gatewayst.com', phone: '+1 555 100 0025', isPrimary: true }] },
+    { code: 'DRIL-026', name: 'DrillRight Mining Equip', creditLimit: 9000000, creditTerms: 45, contacts: [{ name: 'Edward Wright', email: 'ewright@drillright.com', phone: '+1 555 100 0026', isPrimary: true }] },
+    { code: 'ARCH-027', name: 'ArchMet Architectural', creditLimit: 700000, creditTerms: 21, contacts: [{ name: 'Gloria Baker', email: 'gbaker@archmet.com', phone: '+1 555 100 0027', isPrimary: true }] },
+    { code: 'TANK2-028', name: 'OilTank Solutions', creditLimit: 4500000, creditTerms: 30, contacts: [{ name: 'Joseph Nelson', email: 'jnelson@oiltank.com', phone: '+1 555 100 0028', isPrimary: true }] },
+    { code: 'BRIG-029', name: 'BridgeTech Engineering', creditLimit: 15000000, creditTerms: 60, contacts: [{ name: 'Margaret Hill', email: 'mhill@bridgetech.com', phone: '+1 555 100 0029', isPrimary: true }] },
+    { code: 'ROOF-030', name: 'RoofMet Roofing Systems', creditLimit: 500000, creditTerms: 14, contacts: [{ name: 'Richard Carter', email: 'rcarter@roofmet.com', phone: '+1 555 100 0030', isPrimary: true }] },
+    { code: 'MACH-031', name: 'MachineTech Industries', creditLimit: 2800000, creditTerms: 30, contacts: [{ name: 'Sandra Mitchell', email: 'smitchell@machtech.com', phone: '+1 555 100 0031', isPrimary: true }] },
+    { code: 'BULK-032', name: 'BulkStore Silos', creditLimit: 1100000, creditTerms: 21, contacts: [{ name: 'Charles Perez', email: 'cperez@bulkstore.com', phone: '+1 555 100 0032', isPrimary: true }] },
+    { code: 'STAG-033', name: 'StageCraft Productions', creditLimit: 300000, creditTerms: 7, contacts: [{ name: 'Donna Roberts', email: 'droberts@stagecraft.com', phone: '+1 555 100 0033', isPrimary: true }] },
+    { code: 'DOCK-034', name: 'DockMet Port Equipment', creditLimit: 6500000, creditTerms: 45, contacts: [{ name: 'William Turner', email: 'wturner@dockmet.com', phone: '+1 555 100 0034', isPrimary: true }] },
+    { code: 'ENRG-035', name: 'SolarFrame Energy', creditLimit: 2300000, creditTerms: 30, contacts: [{ name: 'Betty Phillips', email: 'bphillips@solarframe.com', phone: '+1 555 100 0035', isPrimary: true }] },
+    { code: 'VENT-036', name: 'VentilTech Systems', creditLimit: 420000, creditTerms: 14, contacts: [{ name: 'Donald Campbell', email: 'dcampbell@ventiltech.com', phone: '+1 555 100 0036', isPrimary: true }] },
+    { code: 'FIRE-037', name: 'FireShield Protection', creditLimit: 650000, creditTerms: 21, contacts: [{ name: 'Ruth Parker', email: 'rparker@fireshield.com', phone: '+1 555 100 0037', isPrimary: true }] },
+    { code: 'WTRE-038', name: 'WaterTreat Technologies', creditLimit: 1700000, creditTerms: 30, contacts: [{ name: 'Raymond Evans', email: 'revans@watertreat.com', phone: '+1 555 100 0038', isPrimary: true }] },
+    { code: 'FORW-039', name: 'ForestWorks Timber', creditLimit: 380000, creditTerms: 14, contacts: [{ name: 'Shirley Edwards', email: 'sedwards@forestworks.com', phone: '+1 555 100 0039', isPrimary: true }] },
+    { code: 'SECU-040', name: 'SecureVault Systems', creditLimit: 850000, creditTerms: 21, contacts: [{ name: 'Walter Collins', email: 'wcollins@securevault.com', phone: '+1 555 100 0040', isPrimary: true }] },
+    { code: 'COLD-041', name: 'ColdChain Storage', creditLimit: 1400000, creditTerms: 30, contacts: [{ name: 'Joyce Stewart', email: 'jstewart@coldchain.com', phone: '+1 555 100 0041', isPrimary: true }] },
+    { code: 'LIFT-042', name: 'LiftShaft Elevators', creditLimit: 3200000, creditTerms: 30, contacts: [{ name: 'Henry Sanchez', email: 'hsanchez@liftshaft.com', phone: '+1 555 100 0042', isPrimary: true }] },
+    { code: 'WELD2-043', name: 'AusWeld Fabrications', creditLimit: 720000, creditTerms: 14, contacts: [{ name: 'Virginia Morris', email: 'vmorris@ausweld.com', phone: '+1 555 100 0043', isPrimary: true }] },
+    { code: 'SOLAR-044', name: 'SunMount Racking', creditLimit: 550000, creditTerms: 21, contacts: [{ name: 'Eugene Rogers', email: 'erogers@sunmount.com', phone: '+1 555 100 0044', isPrimary: true }] },
+    { code: 'HIWY-045', name: 'HighWay Barriers', creditLimit: 4800000, creditTerms: 45, contacts: [{ name: 'Judy Reed', email: 'jreed@highwaybarriers.com', phone: '+1 555 100 0045', isPrimary: true }] },
+    { code: 'COMM-046', name: 'CommercialKit Interiors', creditLimit: 280000, creditTerms: 7, contacts: [{ name: 'Dennis Cook', email: 'dcook@commercialkit.com', phone: '+1 555 100 0046', isPrimary: true }] },
+    { code: 'TELE-047', name: 'TeleTower Structures', creditLimit: 6200000, creditTerms: 45, contacts: [{ name: 'Carolyn Morgan', email: 'cmorgan@teletower.com', phone: '+1 555 100 0047', isPrimary: true }] },
+    { code: 'GATE2-048', name: 'SecureGate Fencing', creditLimit: 470000, creditTerms: 14, contacts: [{ name: 'Arthur Bell', email: 'abell@securegate.com', phone: '+1 555 100 0048', isPrimary: true }] },
+    { code: 'NAUT-049', name: 'NauticalCraft Marine', creditLimit: 3800000, creditTerms: 30, contacts: [{ name: 'Mildred Murphy', email: 'mmurphy@nauticalcraft.com', phone: '+1 555 100 0049', isPrimary: true }] },
+    { code: 'AERO-050', name: 'AeroFrame Aerospace', creditLimit: 20000000, creditTerms: 60, contacts: [{ name: 'Lawrence Bailey', email: 'lbailey@aeroframe.com', phone: '+1 555 100 0050', isPrimary: true }] },
   ];
-  for (const cust of customers) {
-    await prisma.customer.upsert({
+
+  const createdCustomers: { id: string; code: string; name: string }[] = [];
+  for (const cust of customerDefs) {
+    const c = await prisma.customer.upsert({
       where: { companyId_code: { companyId: company.id, code: cust.code } },
       update: {},
-      create: { companyId: company.id, ...cust, createdBy: adminUser.id, updatedBy: adminUser.id },
+      create: {
+        companyId: company.id,
+        code: cust.code,
+        name: cust.name,
+        creditLimit: cust.creditLimit,
+        creditTerms: cust.creditTerms,
+        contacts: cust.contacts,
+        isActive: true,
+        createdBy: adminUser.id,
+        updatedBy: adminUser.id,
+      },
     });
+    createdCustomers.push({ id: c.id, code: c.code, name: c.name });
   }
-  console.log('✔ Sample customers seeded:', customers.length);
+  console.log('✔ Customers seeded:', createdCustomers.length);
 
-  // ── Sample Suppliers ──────────────────────────────────────────────────────
-  const suppliers = [
-    { code: 'NUCOR-001', name: 'Nucor Steel', paymentTerms: 30 },
-    { code: 'RYERSON-002', name: 'Ryerson Metals', paymentTerms: 45 },
+  // ── 10 Suppliers ──────────────────────────────────────────────────────────
+  const supplierDefs = [
+    { code: 'NUCOR-001', name: 'Nucor Steel', legalName: 'Nucor Corporation', paymentTerms: 30, currencyCode: 'USD', contactName: 'Mike Reynolds', contactEmail: 'mreynolds@nucor.com', contactPhone: '+1 704 366 7000' },
+    { code: 'RYERSON-002', name: 'Ryerson Metals', legalName: 'Ryerson Tull Inc', paymentTerms: 45, currencyCode: 'USD', contactName: 'Janet Foster', contactEmail: 'jfoster@ryerson.com', contactPhone: '+1 773 762 2121' },
+    { code: 'BLUESCOPE-003', name: 'BlueScope Steel', legalName: 'BlueScope Steel Limited', paymentTerms: 30, currencyCode: 'USD', contactName: 'Andrew McLeod', contactEmail: 'amcleod@bluescope.com', contactPhone: '+61 2 9080 3000' },
+    { code: 'METALS4U-004', name: 'Metals4U', legalName: 'Metals4U Pty Ltd', paymentTerms: 14, currencyCode: 'USD', contactName: 'Rebecca Stone', contactEmail: 'rstone@metals4u.com', contactPhone: '+1 800 555 0104' },
+    { code: 'SSAB-005', name: 'SSAB Americas', legalName: 'SSAB Swedish Steel Inc', paymentTerms: 30, currencyCode: 'USD', contactName: 'Lars Eriksson', contactEmail: 'lars.eriksson@ssab.com', contactPhone: '+1 800 255 6003' },
+    { code: 'RELIANCE-006', name: 'Reliance Steel', legalName: 'Reliance Steel & Aluminum Co', paymentTerms: 30, currencyCode: 'USD', contactName: 'Patricia Nguyen', contactEmail: 'pnguyen@rsac.com', contactPhone: '+1 213 687 7700' },
+    { code: 'SERVICE-007', name: 'ServiceCenter Direct', legalName: 'ServiceCenter Direct LLC', paymentTerms: 21, currencyCode: 'USD', contactName: 'Kevin Brady', contactEmail: 'kbrady@scdirect.com', contactPhone: '+1 312 555 0107' },
+    { code: 'SAMUEL-008', name: 'Samuel Steel', legalName: 'Samuel, Son & Co', paymentTerms: 45, currencyCode: 'USD', contactName: 'Catherine Walsh', contactEmail: 'cwalsh@samuel.com', contactPhone: '+1 905 827 4111' },
+    { code: 'STLTECH-009', name: 'SteelTech Supply', legalName: 'SteelTech Supply Pty Ltd', paymentTerms: 21, currencyCode: 'USD', contactName: 'Robert Cheng', contactEmail: 'rcheng@steeltech.com', contactPhone: '+1 800 555 0109' },
+    { code: 'ATLAS-010', name: 'Atlas Metals', legalName: 'Atlas Metals & Materials Inc', paymentTerms: 30, currencyCode: 'USD', contactName: 'Jennifer Patel', contactEmail: 'jpatel@atlasmetals.com', contactPhone: '+1 800 555 0110' },
   ];
-  for (const sup of suppliers) {
-    await prisma.supplier.upsert({
+
+  const createdSuppliers: { id: string; code: string; name: string }[] = [];
+  for (const sup of supplierDefs) {
+    const { contactName, contactEmail, contactPhone, ...supData } = sup;
+    const s = await prisma.supplier.upsert({
       where: { companyId_code: { companyId: company.id, code: sup.code } },
       update: {},
-      create: { companyId: company.id, ...sup, createdBy: adminUser.id, updatedBy: adminUser.id },
+      create: {
+        companyId: company.id,
+        ...supData,
+        contacts: [{ name: contactName, email: contactEmail, phone: contactPhone, isPrimary: true }],
+        createdBy: adminUser.id,
+        updatedBy: adminUser.id,
+      },
     });
+    createdSuppliers.push({ id: s.id, code: s.code, name: s.name });
   }
-  console.log('✔ Sample suppliers seeded:', suppliers.length);
+  console.log('✔ Suppliers seeded:', createdSuppliers.length);
 
   // ── Work Centers ──────────────────────────────────────────────────────────
   const workCenters = [
@@ -340,6 +418,273 @@ async function main() {
     });
   }
   console.log('✔ Work centers seeded:', workCenters.length);
+
+  // ── Sample Sales Orders (needed for invoices, work orders, manifests) ─────
+  const now = new Date();
+  const daysAgo = (n: number) => new Date(now.getTime() - n * 86400000);
+  const daysFromNow = (n: number) => new Date(now.getTime() + n * 86400000);
+
+  const soCustomers = createdCustomers.slice(0, 12);
+  const createdSOs: { id: string; orderNumber: string; customerId: string; totalAmount: number }[] = [];
+
+  const soData = [
+    { customer: soCustomers[0], amount: 4850000, status: 'SHIPPED' as const, daysOld: 45 },
+    { customer: soCustomers[1], amount: 1230000, status: 'INVOICED' as const, daysOld: 60 },
+    { customer: soCustomers[2], amount: 875000, status: 'IN_PRODUCTION' as const, daysOld: 7 },
+    { customer: soCustomers[3], amount: 2640000, status: 'CONFIRMED' as const, daysOld: 3 },
+    { customer: soCustomers[4], amount: 9900000, status: 'DRAFT' as const, daysOld: 1 },
+    { customer: soCustomers[5], amount: 3175000, status: 'READY_TO_SHIP' as const, daysOld: 10 },
+    { customer: soCustomers[6], amount: 560000, status: 'SHIPPED' as const, daysOld: 30 },
+    { customer: soCustomers[7], amount: 7200000, status: 'IN_PRODUCTION' as const, daysOld: 5 },
+    { customer: soCustomers[8], amount: 1450000, status: 'CONFIRMED' as const, daysOld: 2 },
+    { customer: soCustomers[9], amount: 380000, status: 'CLOSED' as const, daysOld: 90 },
+    { customer: soCustomers[10], amount: 2100000, status: 'DRAFT' as const, daysOld: 0 },
+    { customer: soCustomers[11], amount: 6600000, status: 'CONFIRMED' as const, daysOld: 4 },
+  ];
+
+  for (let i = 0; i < soData.length; i++) {
+    const so = soData[i];
+    const orderNum = `SO-${String(i + 1).padStart(6, '0')}`;
+    const existing = await prisma.salesOrder.findFirst({ where: { companyId: company.id, orderNumber: orderNum } });
+    if (!existing) {
+      const created = await prisma.salesOrder.create({
+        data: {
+          companyId: company.id,
+          branchId: mainBranch.id,
+          customerId: so.customer.id,
+          orderNumber: orderNum,
+          status: so.status,
+          orderDate: daysAgo(so.daysOld),
+          requiredDate: daysFromNow(14),
+          currencyCode: 'USD',
+          subtotal: BigInt(so.amount),
+          totalAmount: BigInt(so.amount),
+          notes: `Sample sales order for ${so.customer.name}`,
+          createdBy: adminUser.id,
+          updatedBy: adminUser.id,
+          lines: {
+            create: [{
+              lineNumber: 1,
+              productId: createdProducts[i % createdProducts.length].id,
+              description: `Steel materials — ${so.customer.name}`,
+              uom: 'EA',
+              qtyOrdered: 10,
+              unitPrice: BigInt(Math.round(so.amount / 10)),
+              lineTotal: BigInt(so.amount),
+              createdBy: adminUser.id,
+            }],
+          },
+        },
+      });
+      createdSOs.push({ id: created.id, orderNumber: orderNum, customerId: so.customer.id, totalAmount: so.amount });
+    } else {
+      createdSOs.push({ id: existing.id, orderNumber: orderNum, customerId: so.customer.id, totalAmount: so.amount });
+    }
+  }
+  console.log('✔ Sample sales orders seeded:', createdSOs.length);
+
+  // ── Sample Work Orders ────────────────────────────────────────────────────
+  const woStatuses = ['DRAFT', 'SCHEDULED', 'IN_PROGRESS', 'IN_PROGRESS', 'SCHEDULED', 'COMPLETED', 'IN_PROGRESS', 'DRAFT', 'COMPLETED', 'SCHEDULED'];
+  for (let i = 0; i < 10; i++) {
+    const woNum = `WO-${String(i + 1).padStart(6, '0')}`;
+    const existing = await prisma.workOrder.findFirst({ where: { companyId: company.id, workOrderNumber: woNum } });
+    if (!existing) {
+      await prisma.workOrder.create({
+        data: {
+          companyId: company.id,
+          branchId: mainBranch.id,
+          salesOrderId: i < createdSOs.length ? createdSOs[i].id : null,
+          workOrderNumber: woNum,
+          status: woStatuses[i] as any,
+          priority: (i % 5) + 1,
+          scheduledDate: daysFromNow(i * 2),
+          notes: `Work order ${i + 1} — cutting and processing`,
+          createdBy: adminUser.id,
+          updatedBy: adminUser.id,
+        },
+      });
+    }
+  }
+  console.log('✔ Work orders seeded: 10');
+
+  // ── Sample Shipping Manifests ─────────────────────────────────────────────
+  const manifestStatuses = ['PENDING', 'PENDING', 'SHIPPED', 'DELIVERED', 'DELIVERED', 'SHIPPED', 'PENDING', 'DELIVERED'];
+  const carriers = ['TNT', 'Toll Priority', 'StarTrack', 'FedEx', 'DHL', 'Mainfreight', 'Linfox', 'TNT'];
+  for (let i = 0; i < 8; i++) {
+    const manNum = `MAN-${String(i + 1).padStart(6, '0')}`;
+    const existing = await prisma.shipmentManifest.findFirst({ where: { companyId: company.id, manifestNumber: manNum } });
+    if (!existing) {
+      await prisma.shipmentManifest.create({
+        data: {
+          companyId: company.id,
+          salesOrderId: i < createdSOs.length ? createdSOs[i].id : null,
+          manifestNumber: manNum,
+          status: manifestStatuses[i] as any,
+          carrier: carriers[i],
+          trackingNumber: `TRK${String(100000 + i).padStart(10, '0')}`,
+          shipDate: manifestStatuses[i] !== 'PENDING' ? daysAgo(10 - i) : null,
+          deliveredAt: manifestStatuses[i] === 'DELIVERED' ? daysAgo(8 - i) : null,
+          notes: `Delivery to ${createdCustomers[i % createdCustomers.length].name}`,
+          createdBy: adminUser.id,
+        },
+      });
+    }
+  }
+  console.log('✔ Shipping manifests seeded: 8');
+
+  // ── Sample AR Invoices ────────────────────────────────────────────────────
+  const invStatuses: Array<'SENT' | 'PAID' | 'OVERDUE' | 'PARTIALLY_PAID' | 'DRAFT'> = [
+    'SENT', 'PAID', 'OVERDUE', 'SENT', 'PARTIALLY_PAID', 'OVERDUE', 'PAID', 'SENT', 'DRAFT', 'OVERDUE',
+    'PAID', 'SENT', 'PARTIALLY_PAID', 'OVERDUE', 'PAID',
+  ];
+  for (let i = 0; i < 15; i++) {
+    const invNum = `INV-${String(i + 1).padStart(6, '0')}`;
+    const existing = await prisma.invoice.findFirst({ where: { companyId: company.id, invoiceNumber: invNum } });
+    if (!existing) {
+      const custIdx = i % createdCustomers.length;
+      const total = BigInt([4850000, 1230000, 875000, 2640000, 9900000, 3175000, 560000, 7200000, 1450000, 380000, 2100000, 6600000, 990000, 1750000, 3200000][i]);
+      const status = invStatuses[i];
+      const paid = status === 'PAID' ? total : status === 'PARTIALLY_PAID' ? total / BigInt(2) : BigInt(0);
+      const due = total - paid;
+      const invoiceDate = daysAgo(30 + i * 3);
+      const dueDate = new Date(invoiceDate.getTime() + 30 * 86400000);
+
+      await prisma.invoice.create({
+        data: {
+          companyId: company.id,
+          customerId: createdCustomers[custIdx].id,
+          invoiceNumber: invNum,
+          status,
+          invoiceDate,
+          dueDate,
+          currencyCode: 'USD',
+          subtotal: total,
+          totalAmount: total,
+          amountPaid: paid,
+          balanceDue: due,
+          notes: `Invoice for ${createdCustomers[custIdx].name}`,
+          createdBy: adminUser.id,
+          updatedBy: adminUser.id,
+          lines: {
+            create: [{
+              lineNumber: 1,
+              description: 'Steel materials and processing',
+              uom: 'EA',
+              qty: 1,
+              unitPrice: total,
+              lineSubtotal: total,
+              lineTotal: total,
+            }],
+          },
+        },
+      });
+    }
+  }
+  console.log('✔ AR Invoices seeded: 15');
+
+  // ── Sample AP Invoices (Supplier Invoices) ────────────────────────────────
+  const apStatuses: Array<'PENDING' | 'APPROVED' | 'PAID' | 'PARTIALLY_PAID'> = [
+    'PENDING', 'APPROVED', 'PAID', 'PENDING', 'APPROVED', 'PAID', 'PARTIALLY_PAID', 'PENDING', 'APPROVED', 'PAID',
+  ];
+  for (let i = 0; i < 10; i++) {
+    const supIdx = i % createdSuppliers.length;
+    const apNum = `AP-INV-${String(i + 1).padStart(5, '0')}`;
+    // SupplierInvoice doesn't have a unique constraint on invoiceNumber per supplier, just check
+    const existing = await prisma.supplierInvoice.findFirst({ where: { supplierId: createdSuppliers[supIdx].id, invoiceNumber: apNum } });
+    if (!existing) {
+      const total = BigInt([2400000, 1800000, 3600000, 900000, 5400000, 1200000, 720000, 4800000, 660000, 2100000][i]);
+      const status = apStatuses[i];
+      const paid = status === 'PAID' ? total : status === 'PARTIALLY_PAID' ? total / BigInt(2) : BigInt(0);
+      const invoiceDate = daysAgo(20 + i * 4);
+      const dueDate = new Date(invoiceDate.getTime() + 30 * 86400000);
+
+      await prisma.supplierInvoice.create({
+        data: {
+          supplierId: createdSuppliers[supIdx].id,
+          invoiceNumber: apNum,
+          invoiceDate,
+          dueDate,
+          status,
+          subtotal: total,
+          totalAmount: total,
+          amountPaid: paid,
+          notes: `Invoice from ${createdSuppliers[supIdx].name}`,
+          createdBy: adminUser.id,
+        },
+      });
+    }
+  }
+  console.log('✔ AP Invoices seeded: 10');
+
+  // ── CRM Pipeline Stages ───────────────────────────────────────────────────
+  const defaultStages = [
+    { name: 'LEAD', color: 'gray', order: 0, isWon: false, isLost: false },
+    { name: 'CONTACTED', color: 'blue', order: 1, isWon: false, isLost: false },
+    { name: 'QUALIFIED', color: 'teal', order: 2, isWon: false, isLost: false },
+    { name: 'PROPOSAL', color: 'amber', order: 3, isWon: false, isLost: false },
+    { name: 'NEGOTIATION', color: 'orange', order: 4, isWon: false, isLost: false },
+    { name: 'WON', color: 'green', order: 5, isWon: true, isLost: false },
+    { name: 'LOST', color: 'red', order: 6, isWon: false, isLost: true },
+  ];
+
+  for (const stage of defaultStages) {
+    const existing = await (prisma as any).pipelineStage.findFirst({ where: { companyId: company.id, name: stage.name } });
+    if (!existing) {
+      await (prisma as any).pipelineStage.create({ data: { companyId: company.id, ...stage } });
+    }
+  }
+  console.log('✔ CRM pipeline stages seeded: 7');
+
+  // ── 50 CRM Prospects ─────────────────────────────────────────────────────
+  const prospectStages = ['LEAD', 'LEAD', 'CONTACTED', 'CONTACTED', 'QUALIFIED', 'QUALIFIED', 'PROPOSAL', 'PROPOSAL', 'NEGOTIATION', 'WON', 'LOST', 'CONTACTED'];
+  const industries = ['Manufacturing', 'Construction', 'Mining', 'Energy', 'Marine', 'Agriculture', 'Automotive', 'Aerospace'];
+  const prospectNames = [
+    ['Iron Ridge Mining', 'Tom Hanson'], ['SteelFrame Builders', 'Angela Morris'], ['Pacific Pipe Works', 'Liam Chen'],
+    ['EquipCraft Industries', 'Sophia Turner'], ['NorthernMet Resources', 'Jake Williams'], ['Delta Construction', 'Olivia Brown'],
+    ['Coastline Fabricators', 'Noah Davis'], ['HydroMet Engineering', 'Ava Martinez'], ['RockSolid Structures', 'Elijah Johnson'],
+    ['OceanFloor Tech', 'Emma Wilson'], ['GreenField Energy', 'Mason Anderson'], ['Summit Mining Co', 'Isabella Thomas'],
+    ['Rapid Build Solutions', 'Aiden Taylor'], ['DeepSea Systems', 'Mia Jackson'], ['CraneOps International', 'Lucas White'],
+    ['TerraFirm Drilling', 'Charlotte Harris'], ['BlastRight Mining', 'Ethan Martin'], ['PortMet Services', 'Amelia Thompson'],
+    ['LineMet Pipelines', 'Oliver Garcia'], ['BridgeWorks Inc', 'Harper Martinez'], ['UrbanSteel Group', 'Benjamin Robinson'],
+    ['FuturePipe Ventures', 'Evelyn Clark'], ['AlloyTech Corp', 'Sebastian Rodriguez'], ['SpanMet Structures', 'Abigail Lewis'],
+    ['HarborCraft Boats', 'Matthew Lee'], ['PrimeMet Solutions', 'Scarlett Walker'], ['TechFrame Modular', 'Alexander Hall'],
+    ['NextGen Steel', 'Sofia Allen'], ['ProBuild Contractors', 'James Young'], ['MetalCore Industries', 'Chloe Hernandez'],
+    ['DataCenter Build', 'Benjamin King'], ['SkyFrame Towers', 'Penelope Wright'], ['FlexMet Fabricators', 'Levi Lopez'],
+    ['PrecisionCut Co', 'Victoria Hill'], ['SafetyFirst Barriers', 'Jack Scott'], ['AtlasMet Resources', 'Aria Green'],
+    ['DuraMet Structures', 'Owen Adams'], ['AceMet Holdings', 'Hannah Baker'], ['CoreFab Engineering', 'Sebastian Gonzalez'],
+    ['VibeMet Solutions', 'Elena Nelson'], ['BluePrint Steel', 'Julian Carter'], ['NovaMet Industries', 'Stella Mitchell'],
+    ['EdgeFrame Structures', 'Kai Perez'], ['SolidMet Corp', 'Naomi Roberts'], ['ZenithSteel Group', 'Aaron Turner'],
+    ['GroundBreak Mining', 'Lily Phillips'], ['SteelPath Solutions', 'Caleb Campbell'], ['TerraSteel Resources', 'Zoe Parker'],
+    ['ArcMet Fabricators', 'Dylan Evans'], ['FusionMet Corp', 'Layla Edwards'],
+  ];
+
+  let prospectCount = 0;
+  for (let i = 0; i < 50; i++) {
+    const [company_name, contact_name] = prospectNames[i];
+    const stage = prospectStages[i % prospectStages.length];
+    const existing = await (prisma as any).prospect.findFirst({ where: { companyId: company.id, companyName: company_name } });
+    if (!existing) {
+      await (prisma as any).prospect.create({
+        data: {
+          companyId: company.id,
+          companyName: company_name,
+          contactName: contact_name,
+          email: `${contact_name.toLowerCase().replace(' ', '.')}@${company_name.toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/g, '')}.com`,
+          phone: `+1 555 ${String(200 + i).padStart(3, '0')} ${String(1000 + i).padStart(4, '0')}`,
+          stage,
+          industry: industries[i % industries.length],
+          estimatedValue: BigInt([500000, 1200000, 800000, 2500000, 350000, 4000000, 1500000, 900000, 3200000, 600000][i % 10]),
+          probability: { LEAD: 10, CONTACTED: 20, QUALIFIED: 40, PROPOSAL: 60, NEGOTIATION: 75, WON: 100, LOST: 0 }[stage] ?? 50,
+          nextFollowUp: daysFromNow(7 + (i % 14)),
+          notes: `Interested in structural steel and processing services. Initial contact via ${i % 3 === 0 ? 'trade show' : i % 3 === 1 ? 'website inquiry' : 'referral'}.`,
+          createdBy: adminUser.id,
+          updatedBy: adminUser.id,
+        },
+      });
+      prospectCount++;
+    }
+  }
+  console.log('✔ CRM prospects seeded:', prospectCount);
 
   console.log('\n✅ Seeding complete!');
   console.log('   Login: admin@dicandilo.com');
