@@ -464,13 +464,12 @@ async function main() {
           lines: {
             create: [{
               lineNumber: 1,
-              productId: createdProducts[i % createdProducts.length].id,
+              product: { connect: { id: createdProducts[i % createdProducts.length].id } },
               description: `Steel materials — ${so.customer.name}`,
               uom: 'EA',
               qtyOrdered: 10,
               unitPrice: BigInt(Math.round(so.amount / 10)),
               lineTotal: BigInt(so.amount),
-              createdBy: adminUser.id,
             }],
           },
         },
