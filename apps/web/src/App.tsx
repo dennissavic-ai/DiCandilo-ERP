@@ -22,6 +22,7 @@ import { PriceBooksPage } from './pages/sales/PriceBooksPage';
 import { CustomerPortalPage } from './pages/sales/CustomerPortalPage';
 import { PurchaseOrdersPage } from './pages/purchasing/PurchaseOrdersPage';
 import { SuppliersPage } from './pages/purchasing/SuppliersPage';
+import { SupplierDetailPage } from './pages/purchasing/SupplierDetailPage';
 import { PurchaseOrderDetailPage } from './pages/purchasing/PurchaseOrderDetailPage';
 import { WorkOrdersPage } from './pages/processing/WorkOrdersPage';
 import { WorkOrderDetailPage } from './pages/processing/WorkOrderDetailPage';
@@ -107,6 +108,7 @@ export default function App() {
             <Route path="orders" element={<PurchaseOrdersPage />} />
             <Route path="orders/:id" element={<PurchaseOrderDetailPage />} />
             <Route path="suppliers" element={<SuppliersPage />} />
+            <Route path="suppliers/:id" element={<SupplierDetailPage />} />
           </Route>
 
           {/* Processing / Orders */}

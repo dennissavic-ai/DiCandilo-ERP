@@ -200,6 +200,67 @@ export const accountingRoutes: FastifyPluginAsync = async (fastify) => {
     } catch (err) { return handleError(reply, err); }
   });
 
+  // Create standalone AR invoice
+  fastify.post('/invoices', { preHandler: [authenticate, requirePermission('accounting', 'create')] }, async (request, reply) => {
+    try {
+      const { companyId, sub } = request.user as { companyId: string; sub: string };
+      const body = z.object({
+        customerId: z.string().uuid(),
+        invoiceDate: z.string().optional(),
+        dueDate: z.string().optional(),
+        currency: z.string().default('AUD'),
+        notes: z.string().optional(),
+        lines: z.array(z.object({
+          description: z.string().min(1),
+          qty: z.number().positive(),
+          unitPrice: z.number().int().nonnegative(),
+        })).min(1),
+      }).parse(request.body);
+
+      const count = await prisma.invoice.count({ where: { companyId } });
+      const invoiceNumber = `INV-${String(count + 1).padStart(6, '0')}`;
+      const totalAmount = body.lines.reduce((s, l) => s + Math.round(l.qty * l.unitPrice), 0);
+      const invoiceDate = body.invoiceDate ? new Date(body.invoiceDate) : new Date();
+      const dueDate = body.dueDate ? new Date(body.dueDate) : (() => { const d = new Date(); d.setDate(d.getDate() + 30); return d; })();
+
+      const invoice = await prisma.invoice.create({
+        data: {
+          companyId,
+          customerId: body.customerId,
+          invoiceNumber,
+          invoiceDate,
+          dueDate,
+          currencyCode: body.currency,
+          subtotal: totalAmount,
+          discountAmount: 0,
+          taxAmount: 0,
+          freightAmount: 0,
+          totalAmount,
+          balanceDue: totalAmount,
+          notes: body.notes,
+          status: 'DRAFT',
+          createdBy: sub,
+          updatedBy: sub,
+          lines: {
+            create: body.lines.map((l, i) => ({
+              lineNumber: i + 1,
+              description: l.description,
+              uom: 'EA',
+              qty: l.qty,
+              unitPrice: l.unitPrice,
+              discountPct: 0,
+              lineSubtotal: Math.round(l.qty * l.unitPrice),
+              lineTotal: Math.round(l.qty * l.unitPrice),
+            })),
+          },
+        },
+        include: { lines: true },
+      });
+
+      return reply.status(201).send(invoice);
+    } catch (err) { return handleError(reply, err); }
+  });
+
   // Record customer payment — updates AR and posts GL (DR Cash / CR AR)
   fastify.post('/invoices/:id/payments', { preHandler: [authenticate, requirePermission('accounting', 'create')] }, async (request, reply) => {
     try {
@@ -303,7 +364,11 @@ export const accountingRoutes: FastifyPluginAsync = async (fastify) => {
         }),
         prisma.supplierInvoice.count({ where }),
       ]);
-      return paginatedResponse(data, total, page, limit);
+      const dataWithBalance = data.map((inv: any) => ({
+        ...inv,
+        balanceDue: Number(inv.totalAmount) - Number(inv.amountPaid),
+      }));
+      return paginatedResponse(dataWithBalance, total, page, limit);
     } catch (err) { return handleError(reply, err); }
   });
 

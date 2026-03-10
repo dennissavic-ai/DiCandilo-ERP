@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm, useFieldArray } from 'react-hook-form';
-import { Plus, Trash2, CheckCircle, AlertCircle, Package } from 'lucide-react';
+import { Plus, Trash2, CheckCircle, AlertCircle, Package, Upload, FileText } from 'lucide-react';
 import { inventoryApi } from '../../services/api';
 import { PageHeader } from '../../components/ui/PageHeader';
 
@@ -27,6 +27,10 @@ export function ReceiveStockPage() {
   const queryClient = useQueryClient();
   const [success, setSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showUpload, setShowUpload] = useState(false);
+  const [lastPoId, setLastPoId] = useState('');
+  const [uploadedFiles, setUploadedFiles] = useState<{ name: string; url: string }[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: locations } = useQuery({ queryKey: ['locations'], queryFn: () => inventoryApi.listLocations().then((r) => r.data) });
   const { data: products } = useQuery({ queryKey: ['products-all'], queryFn: () => inventoryApi.listProducts({ limit: 200 }).then((r) => r.data) });
@@ -44,17 +48,30 @@ export function ReceiveStockPage() {
     mutationFn: (data: object) => inventoryApi.receiveStock(data),
     onSuccess: () => {
       setSuccess('Stock received and added to inventory.');
+      setShowUpload(true);
       reset();
       queryClient.invalidateQueries({ queryKey: ['inventory-items'] });
-      setTimeout(() => setSuccess(null), 5000);
+      setTimeout(() => setSuccess(null), 8000);
     },
     onError: (e: { response?: { data?: { message?: string } } }) => {
       setError(e.response?.data?.message ?? 'Failed to receive stock.');
     },
   });
 
+  const uploadMut = useMutation({
+    mutationFn: ({ file, poId }: { file: File; poId: string }) =>
+      inventoryApi.uploadDocument(file, 'PO_RECEIPT', poId),
+    onSuccess: (res: any) => {
+      setUploadedFiles(f => [...f, { name: res.data.fileName, url: res.data.fileUrl }]);
+    },
+    onError: () => {
+      setError('Failed to upload document.');
+    },
+  });
+
   const onSubmit = (data: ReceiveForm) => {
     setError(null);
+    setLastPoId(data.purchaseOrderId || '');
     receiveMut.mutate({
       locationId: data.locationId,
       purchaseOrderId: data.purchaseOrderId || undefined,
@@ -62,7 +79,7 @@ export function ReceiveStockPage() {
       lines: data.lines.map((l) => ({
         productId: l.productId,
         qtyReceived: Number(l.qtyReceived),
-        unitCost: Math.round(Number(l.unitCost) * 100), // convert to cents
+        unitCost: Math.round(Number(l.unitCost) * 100),
         heatNumber: l.heatNumber || undefined,
         certNumber: l.certNumber || undefined,
         thickness: l.thickness ? Number(l.thickness) : undefined,
@@ -71,6 +88,13 @@ export function ReceiveStockPage() {
       })),
     });
   };
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    uploadMut.mutate({ file, poId: lastPoId });
+    e.target.value = '';
+  }
 
   return (
     <div className="max-w-5xl mx-auto">
@@ -209,6 +233,46 @@ export function ReceiveStockPage() {
           </button>
         </div>
       </form>
+
+      {/* Document Upload — shown after successful receipt */}
+      {showUpload && (
+        <div className="card mt-6">
+          <div className="card-header">
+            <h3 className="font-semibold">Attach Documents</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">Upload delivery dockets, test certificates, or mill certs (PDF, JPG, PNG)</p>
+          </div>
+          <div className="card-body space-y-3">
+            <div className="flex items-center gap-3">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".pdf,.jpg,.jpeg,.png"
+                className="hidden"
+                onChange={handleFileChange}
+              />
+              <button
+                type="button"
+                className="btn-secondary btn-sm"
+                disabled={uploadMut.isPending}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Upload size={13} /> {uploadMut.isPending ? 'Uploading…' : 'Upload Document'}
+              </button>
+            </div>
+            {uploadedFiles.length > 0 && (
+              <div className="space-y-1">
+                {uploadedFiles.map((f, i) => (
+                  <div key={i} className="flex items-center gap-2 text-sm text-foreground">
+                    <FileText size={13} className="text-steel-400 flex-shrink-0" />
+                    <span>{f.name}</span>
+                    <span className="badge-green text-[10px] ml-auto">Uploaded</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

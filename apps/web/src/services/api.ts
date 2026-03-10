@@ -112,6 +112,10 @@ export const inventoryApi = {
   // Operations
   adjustStock:      (data: object)   => api.post('/inventory/adjust', data),
   receiveStock:     (data: object)   => api.post('/inventory/receive', data),
+  uploadDocument:   (file: File, sourceType: string, sourceId: string) => {
+    const f = new FormData(); f.append('file', file); f.append('sourceType', sourceType); f.append('sourceId', sourceId);
+    return api.post('/inventory/documents', f, { headers: { 'Content-Type': 'multipart/form-data' } });
+  },
   createTransfer:   (data: object)   => api.post('/inventory/transfers', data),
   listTransfers:    (params?: object) => api.get('/inventory/transfers', { params }),
   getValuation:     (params?: object) => api.get('/inventory/valuation', { params }),
@@ -173,6 +177,7 @@ export const accountingApi = {
   listInvoices: (params?: object) => api.get<PaginatedResponse<Invoice>>('/accounting/invoices', { params }),
   getInvoices:  (params?: object) => api.get<PaginatedResponse<Invoice>>('/accounting/invoices', { params }),
   getInvoice: (id: string) => api.get<Invoice>(`/accounting/invoices/${id}`),
+  createInvoice: (data: object) => api.post('/accounting/invoices', data),
   createInvoiceFromOrder: (soId: string) => api.post(`/accounting/invoices/from-order/${soId}`),
   recordPayment: (invoiceId: string, data: object) => api.post(`/accounting/invoices/${invoiceId}/payments`, data),
   getARAgeing: () => api.get('/accounting/ar-aging'),
@@ -379,6 +384,7 @@ export interface Supplier {
   paymentTerms: number;
   currencyCode: string;
   isActive: boolean;
+  interactionNotes?: any[];
 }
 
 export interface SalesQuote {

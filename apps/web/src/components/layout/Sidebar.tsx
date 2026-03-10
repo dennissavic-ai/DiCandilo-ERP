@@ -55,14 +55,13 @@ const NAV_OPS: NavItem[] = [
     ],
   },
   {
-    label: 'Orders', icon: Wrench,
+    label: 'Operations', icon: Wrench,
     children: [
       { label: 'Dashboard',         to: '/processing/dashboard',    icon: Activity },
       { label: 'Work Orders',       to: '/processing/work-orders',  icon: ClipboardList },
       { label: 'Kanban Board',      to: '/processing/kanban',       icon: Kanban },
       { label: 'Time Tracking',     to: '/processing/time-tracking', icon: Clock },
       { label: 'Scheduling',        to: '/processing/schedule',     icon: BarChart3 },
-      { label: 'Nesting',           to: '/processing/nesting',      icon: Layers },
       { label: 'Shipping / Dispatch', to: '/shipping',              icon: Truck },
     ],
   },
@@ -73,7 +72,6 @@ const NAV_OPS: NavItem[] = [
       { label: 'Invoices',          to: '/accounting/invoices',           icon: FileText },
       { label: 'Cash Flow',         to: '/accounting/cashflow',           icon: TrendingUp },
       { label: 'AR Ageing',         to: '/accounting/ar-ageing',          icon: BarChart3 },
-      { label: 'Accounts Payable',  to: '/accounting/accounts-payable',   icon: DollarSign },
       { label: 'Chart of Accounts', to: '/accounting/chart-of-accounts',  icon: BookOpen },
     ],
   },

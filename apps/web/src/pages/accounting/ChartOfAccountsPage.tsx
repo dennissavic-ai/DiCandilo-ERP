@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { accountingApi } from '../../services/api';
-import { Plus, Search, BookOpen, Edit2, ChevronRight } from 'lucide-react';
+import { Plus, Search, BookOpen, Edit2, ChevronRight, RefreshCw } from 'lucide-react';
 import { useState } from 'react';
 import { Modal } from '../../components/ui/Modal';
 
@@ -62,6 +62,7 @@ export function ChartOfAccountsPage() {
             <option value="">All types</option>
             {TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
           </select>
+          <button className="btn-secondary btn-sm" onClick={() => alert('Xero sync coming soon — connect your Xero organisation in Integrations.')}><RefreshCw size={13} /> Sync with Xero</button>
           <button className="btn-primary btn-sm" onClick={openCreate}><Plus size={13} /> New Account</button>
         </div>
       </div>
@@ -117,7 +118,7 @@ export function ChartOfAccountsPage() {
           <div className="empty-state">
             <div className="empty-state-icon"><BookOpen size={22} /></div>
             <p className="text-sm font-medium">No accounts found</p>
-            <button className="btn-primary btn-sm mt-3" onClick={openCreate}><Plus size={12} /> Add first account</button>
+            <button className="btn-secondary btn-sm mt-3" onClick={() => alert('Xero sync coming soon — connect your Xero organisation in Integrations.')}><RefreshCw size={12} /> Sync with Xero</button>
           </div>
         )}
       </div>
