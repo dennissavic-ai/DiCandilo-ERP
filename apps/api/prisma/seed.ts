@@ -616,12 +616,12 @@ async function main() {
   console.log('✔ AP Invoices seeded: 10');
 
   // ── Shipping Manifests ────────────────────────────────────────────────────
-  const carriers = ['Toll', 'TNT', 'Startrack', 'Linfox', 'Border Express', 'Direct Freight'];
+  const manifestCarriers = ['Toll', 'TNT', 'Startrack', 'Linfox', 'Border Express', 'Direct Freight'];
   const shipStatuses = ['DELIVERED', 'DELIVERED', 'DELIVERED', 'DISPATCHED', 'DISPATCHED', 'CONFIRMED', 'DRAFT'];
-  const createdSOs = await prisma.salesOrder.findMany({ where: { companyId: company.id }, take: 12, include: { customer: true } });
+  const allSalesOrders = await prisma.salesOrder.findMany({ where: { companyId: company.id }, take: 12, include: { customer: true } });
   let manifestCount = 0;
-  for (let i = 0; i < Math.min(10, createdSOs.length); i++) {
-    const so = createdSOs[i];
+  for (let i = 0; i < Math.min(10, allSalesOrders.length); i++) {
+    const so = allSalesOrders[i];
     const status = shipStatuses[i % shipStatuses.length] as 'DELIVERED' | 'DISPATCHED' | 'CONFIRMED' | 'DRAFT';
     const dispatchDate = daysFromNow(-30 + i * 3);
     const mNum = `MAN-${String(i + 1).padStart(6, '0')}`;
@@ -635,7 +635,7 @@ async function main() {
           status,
           dispatchDate,
           deliveredDate: status === 'DELIVERED' ? new Date(dispatchDate.getTime() + 2 * 24 * 60 * 60 * 1000) : null,
-          carrier: carriers[i % carriers.length],
+          carrier: manifestCarriers[i % manifestCarriers.length],
           trackingNumber: status !== 'DRAFT' ? `TRK${String(100000 + i * 7).padStart(8, '0')}` : null,
           deliveryAddress: `${so.customer.name}, 123 Industrial Ave, Perth WA 6000`,
           notes: `Delivery for ${so.orderNumber}`,
