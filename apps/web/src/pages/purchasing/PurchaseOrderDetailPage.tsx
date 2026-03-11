@@ -33,7 +33,7 @@ export function PurchaseOrderDetailPage() {
   });
 
   const [receiveOpen, setReceiveOpen] = useState(false);
-  const [receiveLines, setReceiveLines] = useState<Array<{ poLineId: string; qtyReceived: number; locationId: string }>>([]);
+  const [receiveLines, setReceiveLines] = useState<Array<{ purchaseOrderLineId: string; qtyReceived: number; locationId: string }>>([]);
   const [locations, setLocations] = useState<any[]>([]);
   const [addLineOpen, setAddLineOpen] = useState(false);
   const [newLine, setNewLine] = useState<POLine>({ ...BLANK_LINE });
@@ -74,7 +74,7 @@ export function PurchaseOrderDetailPage() {
   function openReceive() {
     const defaultLocationId = locations[0]?.id ?? '';
     setReceiveLines(lines.map((l: any) => ({
-      poLineId: l.id,
+      purchaseOrderLineId: l.id,
       qtyReceived: parseFloat(l.qtyOrdered ?? 0) - parseFloat(l.qtyReceived ?? 0),
       locationId: defaultLocationId,
     })));
@@ -192,7 +192,7 @@ export function PurchaseOrderDetailPage() {
         </>}>
         <div className="space-y-3">
           {receiveLines.map((rl, i) => {
-            const line = lines.find((l: any) => l.id === rl.poLineId) as any;
+            const line = lines.find((l: any) => l.id === rl.purchaseOrderLineId) as any;
             return (
               <div key={i} className="grid grid-cols-3 gap-3 p-3 bg-steel-50 rounded border border-border">
                 <div>
