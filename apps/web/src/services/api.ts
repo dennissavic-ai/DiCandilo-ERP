@@ -311,6 +311,20 @@ export const planningApi = {
     api.post('/ai/schedule', { workOrderIds }),
 };
 
+// Value Stream Map
+export const vsmApi = {
+  listMaps:    ()               => api.get('/vsm'),
+  createMap:   (data: object)   => api.post('/vsm', data),
+  getMap:      (id: string)     => api.get(`/vsm/${id}`),
+  updateMap:   (id: string, data: object) => api.put(`/vsm/${id}`, data),
+  deleteMap:   (id: string)     => api.delete(`/vsm/${id}`),
+  addNode:     (id: string, data: object) => api.post(`/vsm/${id}/nodes`, data),
+  updateNode:  (id: string, nodeId: string, data: object) => api.put(`/vsm/${id}/nodes/${nodeId}`, data),
+  deleteNode:  (id: string, nodeId: string) => api.delete(`/vsm/${id}/nodes/${nodeId}`),
+  reorderNodes:(id: string, nodeIds: string[]) => api.put(`/vsm/${id}/nodes/reorder`, { nodeIds }),
+  promote:     (id: string)     => api.post(`/vsm/${id}/promote`),
+};
+
 // Automation
 export const automationApi = {
   listRules: () => api.get('/automation/rules'),

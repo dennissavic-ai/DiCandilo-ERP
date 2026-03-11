@@ -4,7 +4,7 @@ import {
   FileText, Wrench, DollarSign, Users, ClipboardList, QrCode,
   Factory, ChevronDown, Layers, TrendingUp, Settings,
   BookOpen, Gauge, Mail, ArrowLeftRight,
-  Tag, Phone, Zap, Plug, Kanban, Clock, Activity, Sparkles,
+  Tag, Phone, Zap, Plug, Kanban, Clock, Activity, Sparkles, GitFork,
 } from 'lucide-react';
 import { useState } from 'react';
 import clsx from 'clsx';
@@ -34,6 +34,7 @@ const NAV_LEADERSHIP: NavItem[] = [
       { label: 'Chart of Accounts', to: '/accounting/chart-of-accounts', icon: BookOpen },
     ],
   },
+  { label: 'Value Stream Map', to: '/leadership/value-stream-map', icon: GitFork },
   { label: 'Users', to: '/admin/users', icon: Users },
 ];
 

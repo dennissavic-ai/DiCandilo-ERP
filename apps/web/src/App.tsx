@@ -52,6 +52,7 @@ import { ContactsPage } from './pages/crm/ContactsPage';
 import { ContactDetailPage } from './pages/crm/ContactDetailPage';
 import { CallReportsPage } from './pages/crm/CallReportsPage';
 import { ShippingPage } from './pages/shipping/ShippingPage';
+import { ValueStreamMapPage } from './pages/leadership/ValueStreamMapPage';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -155,6 +156,9 @@ export default function App() {
 
           {/* Tasks */}
           <Route path="tasks" element={<TasksPage />} />
+
+          {/* Leadership */}
+          <Route path="leadership/value-stream-map" element={<ValueStreamMapPage />} />
 
           {/* Admin */}
           <Route path="admin/users" element={<UsersPage />} />

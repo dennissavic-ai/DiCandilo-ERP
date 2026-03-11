@@ -34,6 +34,7 @@ import { crmRoutes } from './modules/crm/crm.routes';
 import { integrationRoutes } from './modules/integrations/integrations.routes';
 import { aiRoutes } from './modules/ai/ai.routes';
 import planningRoutes from './modules/planning/planning.routes';
+import valuestreamRoutes from './modules/valuestream/valuestream.routes';
 
 const app = Fastify({
   logger: {
@@ -184,6 +185,7 @@ async function buildApp() {
   await app.register(integrationRoutes, { prefix: `${prefix}/integrations` });
   await app.register(aiRoutes, { prefix: `${prefix}/ai` });
   await app.register(planningRoutes, { prefix: `${prefix}/planning` });
+  await app.register(valuestreamRoutes, { prefix: `${prefix}/vsm` });
   await app.register(websocketPlugin, { prefix: `${prefix}/ws` });
 
   // ── Graceful shutdown ─────────────────────────────────────────────────────

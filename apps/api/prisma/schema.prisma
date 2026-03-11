@@ -1847,6 +1847,57 @@ model CashFlowEntry {
   @@index([companyId, entryDate])
 }
 
+// ─── VALUE STREAM MAP ─────────────────────────────────────────────────────────
+
+/// A named Value Stream Map owned by a company. Contains an ordered list of VSMNodes
+/// representing each step in the business workflow from supplier to customer.
+model ValueStreamMap {
+  id          String    @id @default(uuid())
+  companyId   String
+  name        String
+  description String?
+  nodes       VSMNode[]
+  deletedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdBy   String?
+  updatedBy   String?
+
+  @@index([companyId])
+}
+
+/// A single step (node) in a Value Stream Map.
+/// position = left-to-right display order (0-based, re-sequenced on reorder).
+model VSMNode {
+  id             String          @id @default(uuid())
+  mapId          String
+  type           VSMNodeType     @default(PROCESS)
+  label          String
+  position       Int
+  cycleTimeSec   Int?            // seconds to complete one unit
+  changeOverSec  Int?            // changeover / setup seconds
+  uptimePct      Float?          // machine uptime 0–100
+  operatorCount  Int?
+  batchSize      Int?
+  waitTimeSec    Int?            // queue/wait time BEFORE this node (seconds)
+  promotedFromId String?         // workCenterId when auto-promoted from work centers
+  notes          String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  map            ValueStreamMap  @relation(fields: [mapId], references: [id], onDelete: Cascade)
+
+  @@index([mapId])
+}
+
+enum VSMNodeType {
+  SUPPLIER
+  PROCESS
+  INVENTORY
+  SHIPPING
+  CUSTOMER
+}
+
 // ─── DOCUMENT ATTACHMENTS ─────────────────────────────────────────────────────
 
 /// Generic document/file attachment. Attached to any source entity via sourceType + sourceId.
