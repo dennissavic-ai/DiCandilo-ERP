@@ -5,7 +5,6 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { format, addDays } from 'date-fns';
 import { ProductSearchCombobox } from '../../components/ui/ProductSearchCombobox';
-import { AiQuoteAssistant } from '../../components/ai/AiQuoteAssistant';
 
 const STATUS_BADGE: Record<string, string> = {
   DRAFT:     'badge-gray',
@@ -401,7 +400,6 @@ export function QuotesPage() {
               <option key={v} value={v}>{label}</option>
             ))}
           </select>
-          <AiQuoteAssistant />
           <button className="btn-primary btn-sm" onClick={() => setModalOpen(true)}><Plus size={13} /> New Quote</button>
         </div>
       </div>

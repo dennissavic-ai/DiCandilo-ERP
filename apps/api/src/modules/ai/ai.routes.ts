@@ -3,68 +3,102 @@ import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
 import { prisma } from '../../config/database';
 import { authenticate } from '../../middleware/auth.middleware';
-import { handleError } from '../../utils/errors';
 
-const SYSTEM_PROMPT = `You are a sales assistant for DiCandilo Metal Service Center ERP.
-Your job is to create quotes quickly from natural-language order descriptions.
+// ── System prompt ─────────────────────────────────────────────────────────────
 
-Workflow:
-1. Use search_customers to find the right customer. Pick the best match.
-2. For each product mentioned, use search_products to find it by code, description, or material spec. Pick the closest match.
-3. Once you have the customer and all products, call create_quote.
+const SYSTEM_PROMPT = `You are an intelligent ERP assistant for DiCandilo Metal Service Center.
+You have full access to the business and can look up information, create documents, and answer questions across every module.
+
+Capabilities:
+- Sales: create quotes, look up customers and their account status, check open quotes and sales orders
+- Inventory: search the product library, check live stock levels
+- Finance: report overdue invoices, view AR exposure, business KPIs
+- General: answer questions about anything in the business using the tools
 
 Rules:
-- Always search before assuming — never invent customer IDs or product IDs.
-- Unit prices come from the product's listPrice. Never make up a price.
-- If quantity isn't specified, default to 1.
-- If UOM isn't specified, use the product's UOM.
-- If you cannot find a product, describe it as a manual line (no productId, you provide description + unitPrice: 0).
-- Be concise in your reasoning. Act decisively.`;
+- Always use tools to look up real data — never invent IDs, prices, or stock levels.
+- Prices come from listPrice in the product record. Never fabricate a price.
+- Be concise and action-oriented. Summarise results clearly.
+- When creating documents (quotes, orders), confirm the key details in your response.
+- If a request is ambiguous, ask one clarifying question rather than guessing.`;
+
+// ── Tool definitions ──────────────────────────────────────────────────────────
 
 const TOOLS: Anthropic.Tool[] = [
   {
     name: 'search_customers',
-    description: 'Search for customers by name, code, or partial match. Returns up to 5 results.',
-    input_schema: {
-      type: 'object' as const,
-      properties: {
-        query: { type: 'string', description: 'Customer name, code, or keywords to search for' },
-      },
-      required: ['query'],
-    },
+    description: 'Search for customers by name or code. Returns id, code, name, currency and credit terms.',
+    input_schema: { type: 'object' as const, properties: { query: { type: 'string' } }, required: ['query'] },
+  },
+  {
+    name: 'get_customer_summary',
+    description: 'Get full account summary for a customer: credit limit/hold status, open AR balance, open quotes, open sales orders.',
+    input_schema: { type: 'object' as const, properties: { customerId: { type: 'string', description: 'Customer UUID' } }, required: ['customerId'] },
   },
   {
     name: 'search_products',
-    description: 'Search the product library by code, description, material type, grade, or dimensions. Returns up to 8 results with list prices.',
+    description: 'Search the product library by code, description, grade, material type or dimensions. Returns up to 8 products with list prices.',
+    input_schema: { type: 'object' as const, properties: { query: { type: 'string' } }, required: ['query'] },
+  },
+  {
+    name: 'check_stock',
+    description: 'Check current available inventory levels for a product. Returns stock by location.',
+    input_schema: { type: 'object' as const, properties: { productQuery: { type: 'string', description: 'Product code or description to search' } }, required: ['productQuery'] },
+  },
+  {
+    name: 'search_quotes',
+    description: 'Search existing sales quotes by customer name, quote number, or status.',
     input_schema: {
       type: 'object' as const,
       properties: {
-        query: { type: 'string', description: 'Product code, description, material spec, or keywords' },
+        query:  { type: 'string', description: 'Customer name or quote number keyword' },
+        status: { type: 'string', description: 'Optional status filter: DRAFT, SENT, ACCEPTED, DECLINED, EXPIRED, CONVERTED' },
       },
       required: ['query'],
     },
   },
   {
-    name: 'create_quote',
-    description: 'Create a draft quote for the customer with the given line items.',
+    name: 'search_sales_orders',
+    description: 'Search sales orders by customer name, order number, or status.',
     input_schema: {
       type: 'object' as const,
       properties: {
-        customerId: { type: 'string', description: 'UUID of the customer' },
-        currency: { type: 'string', description: 'Currency code, e.g. AUD', default: 'AUD' },
-        notes: { type: 'string', description: 'Optional customer-facing notes' },
+        query:  { type: 'string', description: 'Customer name or order number keyword' },
+        status: { type: 'string', description: 'Optional status filter: PENDING, CONFIRMED, PROCESSING, SHIPPED, INVOICED, CANCELLED' },
+      },
+      required: ['query'],
+    },
+  },
+  {
+    name: 'list_overdue_invoices',
+    description: 'List all overdue invoices (past due date, not paid). Returns customer, invoice number, amount, and days overdue.',
+    input_schema: { type: 'object' as const, properties: {}, required: [] },
+  },
+  {
+    name: 'get_business_snapshot',
+    description: 'Get a high-level business snapshot: open quotes count/value, open sales orders, revenue this month, overdue AR total.',
+    input_schema: { type: 'object' as const, properties: {}, required: [] },
+  },
+  {
+    name: 'create_quote',
+    description: 'Create a draft quote for a customer.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        customerId: { type: 'string' },
+        currency:   { type: 'string', default: 'AUD' },
+        notes:      { type: 'string' },
         lines: {
           type: 'array',
-          description: 'Line items for the quote',
           items: {
             type: 'object',
             properties: {
-              productId:   { type: 'string',  description: 'UUID of the product (omit for manual lines)' },
-              description: { type: 'string',  description: 'Line description (required)' },
-              qty:         { type: 'integer', description: 'Quantity ordered', default: 1 },
-              uom:         { type: 'string',  description: 'Unit of measure, e.g. EA, KG, SHT', default: 'EA' },
-              unitPrice:   { type: 'integer', description: 'Unit price in cents (from listPrice)', default: 0 },
-              discountPct: { type: 'number',  description: 'Discount percentage 0-100', default: 0 },
+              productId:   { type: 'string' },
+              description: { type: 'string' },
+              qty:         { type: 'integer', default: 1 },
+              uom:         { type: 'string',  default: 'EA' },
+              unitPrice:   { type: 'integer', description: 'Cents' },
+              discountPct: { type: 'number',  default: 0 },
             },
             required: ['description', 'qty', 'uom', 'unitPrice'],
           },
@@ -78,33 +112,51 @@ const TOOLS: Anthropic.Tool[] = [
 // ── Tool executors ────────────────────────────────────────────────────────────
 
 async function searchCustomers(companyId: string, query: string) {
-  const results = await prisma.customer.findMany({
-    where: {
-      companyId,
-      deletedAt: null,
-      isActive: true,
-      OR: [
-        { name: { contains: query, mode: 'insensitive' } },
-        { code: { contains: query, mode: 'insensitive' } },
-      ],
+  return prisma.customer.findMany({
+    where: { companyId, deletedAt: null, isActive: true,
+      OR: [{ name: { contains: query, mode: 'insensitive' } }, { code: { contains: query, mode: 'insensitive' } }],
     },
     take: 5,
     select: { id: true, code: true, name: true, creditTerms: true, currencyCode: true },
   });
-  return results;
+}
+
+async function getCustomerSummary(companyId: string, customerId: string) {
+  const [customer, arResult, openQuotes, openOrders] = await Promise.all([
+    prisma.customer.findFirst({
+      where: { id: customerId, companyId },
+      select: { id: true, code: true, name: true, creditLimit: true, creditHold: true, creditTerms: true, currencyCode: true },
+    }),
+    prisma.invoice.aggregate({
+      where: { customerId, companyId, status: { notIn: ['PAID', 'CANCELLED', 'WRITTEN_OFF'] }, deletedAt: null },
+      _sum: { balanceDue: true },
+      _count: true,
+    }),
+    prisma.salesQuote.aggregate({
+      where: { customerId, companyId, status: { notIn: ['EXPIRED', 'CONVERTED'] }, deletedAt: null },
+      _sum: { totalAmount: true }, _count: true,
+    }),
+    prisma.salesOrder.aggregate({
+      where: { customerId, companyId, status: { notIn: ['CANCELLED', 'INVOICED', 'CLOSED'] }, deletedAt: null },
+      _sum: { totalAmount: true }, _count: true,
+    }),
+  ]);
+  return {
+    customer,
+    openAR:      { count: arResult._count,    totalCents: Number(arResult._sum?.balanceDue   ?? 0) },
+    openQuotes:  { count: openQuotes._count,  totalCents: Number(openQuotes._sum?.totalAmount ?? 0) },
+    openOrders:  { count: openOrders._count,  totalCents: Number(openOrders._sum?.totalAmount ?? 0) },
+  };
 }
 
 async function searchProducts(companyId: string, query: string) {
   const results = await prisma.product.findMany({
-    where: {
-      companyId,
-      deletedAt: null,
-      isActive: true,
+    where: { companyId, deletedAt: null, isActive: true,
       OR: [
-        { code:         { contains: query, mode: 'insensitive' } },
-        { description:  { contains: query, mode: 'insensitive' } },
-        { grade:        { contains: query, mode: 'insensitive' } },
-        { materialType: { contains: query, mode: 'insensitive' } },
+        { code:            { contains: query, mode: 'insensitive' } },
+        { description:     { contains: query, mode: 'insensitive' } },
+        { grade:           { contains: query, mode: 'insensitive' } },
+        { materialType:    { contains: query, mode: 'insensitive' } },
         { longDescription: { contains: query, mode: 'insensitive' } },
       ],
     },
@@ -114,68 +166,143 @@ async function searchProducts(companyId: string, query: string) {
   return results.map((p) => ({ ...p, listPrice: Number(p.listPrice) }));
 }
 
-async function createQuote(
-  companyId: string,
-  branchId: string,
-  userId: string,
-  input: {
-    customerId: string;
-    currency?: string;
-    notes?: string;
-    lines: { productId?: string; description: string; qty: number; uom: string; unitPrice: number; discountPct?: number }[];
-  },
-) {
-  const count  = await prisma.salesQuote.count({ where: { companyId } });
+async function checkStock(companyId: string, productQuery: string) {
+  const products = await searchProducts(companyId, productQuery);
+  if (products.length === 0) return { found: false, products: [] };
+  const productIds = products.map((p) => p.id);
+  const stock = await prisma.inventoryItem.groupBy({
+    by: ['productId'],
+    where: { product: { companyId }, productId: { in: productIds }, isActive: true, deletedAt: null },
+    _sum: { qtyAvailable: true },
+  });
+  return products.map((p) => ({
+    ...p,
+    qtyAvailable: Number(stock.find((s) => s.productId === p.id)?._sum.qtyAvailable ?? 0),
+  }));
+}
+
+async function searchQuotes(companyId: string, query: string, status?: string) {
+  const results = await prisma.salesQuote.findMany({
+    where: {
+      companyId, deletedAt: null,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ...(status && { status: status as any }),
+      OR: [
+        { quoteNumber:          { contains: query, mode: 'insensitive' } },
+        { customer: { name:     { contains: query, mode: 'insensitive' } } },
+        { customer: { code:     { contains: query, mode: 'insensitive' } } },
+      ],
+    },
+    take: 8,
+    orderBy: { createdAt: 'desc' },
+    select: { id: true, quoteNumber: true, status: true, totalAmount: true, validUntil: true, customer: { select: { name: true, code: true } } },
+  });
+  return results.map((q) => ({ ...q, totalAmount: Number(q.totalAmount) }));
+}
+
+async function searchSalesOrders(companyId: string, query: string, status?: string) {
+  const results = await prisma.salesOrder.findMany({
+    where: {
+      companyId, deletedAt: null,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ...(status && { status: status as any }),
+      OR: [
+        { orderNumber:          { contains: query, mode: 'insensitive' } },
+        { customer: { name:     { contains: query, mode: 'insensitive' } } },
+        { customer: { code:     { contains: query, mode: 'insensitive' } } },
+        { customerPoNumber:     { contains: query, mode: 'insensitive' } },
+      ],
+    },
+    take: 8,
+    orderBy: { createdAt: 'desc' },
+    select: { id: true, orderNumber: true, status: true, totalAmount: true, requiredDate: true, customer: { select: { name: true, code: true } } },
+  });
+  return results.map((o) => ({ ...o, totalAmount: Number(o.totalAmount) }));
+}
+
+async function listOverdueInvoices(companyId: string) {
+  const now = new Date();
+  const results = await prisma.invoice.findMany({
+    where: { companyId, deletedAt: null, dueDate: { lt: now }, status: { notIn: ['PAID', 'CANCELLED', 'WRITTEN_OFF'] } },
+    orderBy: { dueDate: 'asc' },
+    take: 20,
+    select: { id: true, invoiceNumber: true, dueDate: true, balanceDue: true, customer: { select: { name: true, code: true } } },
+  });
+  return results.map((inv) => ({
+    ...inv,
+    balanceDue:  Number(inv.balanceDue),
+    daysOverdue: Math.floor((now.getTime() - inv.dueDate.getTime()) / 86_400_000),
+  }));
+}
+
+async function getBusinessSnapshot(companyId: string) {
+  const now       = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  const [openQuotes, openOrders, monthRevenue, overdueAR] = await Promise.all([
+    prisma.salesQuote.aggregate({
+      where: { companyId, deletedAt: null, status: { notIn: ['EXPIRED', 'CONVERTED'] } },
+      _sum: { totalAmount: true }, _count: true,
+    }),
+    prisma.salesOrder.aggregate({
+      where: { companyId, deletedAt: null, status: { notIn: ['CANCELLED', 'INVOICED', 'CLOSED'] } },
+      _sum: { totalAmount: true }, _count: true,
+    }),
+    prisma.salesOrder.aggregate({
+      where: { companyId, deletedAt: null, status: 'INVOICED', createdAt: { gte: monthStart } },
+      _sum: { totalAmount: true },
+    }),
+    prisma.invoice.aggregate({
+      where: { companyId, deletedAt: null, dueDate: { lt: now }, status: { notIn: ['PAID', 'CANCELLED', 'WRITTEN_OFF'] } },
+      _sum: { balanceDue: true }, _count: true,
+    }),
+  ]);
+
+  return {
+    openQuotes:    { count: openQuotes._count,  valueCents: Number(openQuotes._sum?.totalAmount ?? 0) },
+    openOrders:    { count: openOrders._count,  valueCents: Number(openOrders._sum?.totalAmount ?? 0) },
+    monthRevenue:  { valueCents: Number(monthRevenue._sum?.totalAmount ?? 0) },
+    overdueAR:     { count: overdueAR._count,   valueCents: Number(overdueAR._sum?.balanceDue  ?? 0) },
+  };
+}
+
+async function createQuote(companyId: string, branchId: string, userId: string, input: {
+  customerId: string; currency?: string; notes?: string;
+  lines: { productId?: string; description: string; qty: number; uom: string; unitPrice: number; discountPct?: number }[];
+}) {
+  const count   = await prisma.salesQuote.count({ where: { companyId } });
   const quoteNumber = `Q-${String(count + 1).padStart(6, '0')}`;
-
-  const subtotal = input.lines.reduce((sum, l) => {
+  const subtotal = input.lines.reduce((s, l) => {
     const ls = l.qty * l.unitPrice;
-    return sum + ls - Math.round(ls * (l.discountPct ?? 0) / 100);
+    return s + ls - Math.round(ls * (l.discountPct ?? 0) / 100);
   }, 0);
-
   const validUntil = new Date();
   validUntil.setDate(validUntil.getDate() + 30);
 
   const quote = await prisma.salesQuote.create({
     data: {
-      companyId,
-      branchId: branchId ?? '',
-      customerId: input.customerId,
-      quoteNumber,
-      status: 'DRAFT',
-      quoteDate: new Date(),
-      validUntil,
+      companyId, branchId: branchId ?? '', customerId: input.customerId,
+      quoteNumber, status: 'DRAFT', quoteDate: new Date(), validUntil,
       currencyCode: input.currency ?? 'AUD',
-      subtotal,
-      taxAmount: Math.round(subtotal * 0.1),
+      subtotal, taxAmount: Math.round(subtotal * 0.1),
       totalAmount: subtotal + Math.round(subtotal * 0.1),
-      notes: input.notes,
-      createdBy: userId,
-      updatedBy: userId,
+      notes: input.notes, createdBy: userId, updatedBy: userId,
       lines: {
         create: input.lines.map((l, i) => {
           const ls = l.qty * l.unitPrice;
-          return {
-            lineNumber:  i + 1,
-            productId:   l.productId,
-            description: l.description,
-            uom:         l.uom,
-            qty:         l.qty,
-            unitPrice:   l.unitPrice,
-            discountPct: l.discountPct ?? 0,
-            lineTotal:   ls - Math.round(ls * (l.discountPct ?? 0) / 100),
-          };
+          return { lineNumber: i + 1, productId: l.productId, description: l.description,
+            uom: l.uom, qty: l.qty, unitPrice: l.unitPrice, discountPct: l.discountPct ?? 0,
+            lineTotal: ls - Math.round(ls * (l.discountPct ?? 0) / 100) };
         }),
       },
     },
   });
-
   return { quoteId: quote.id, quoteNumber: quote.quoteNumber };
 }
 
 // ── SSE helper ────────────────────────────────────────────────────────────────
 
-function sseEvent(reply: { raw: { write: (s: string) => void } }, event: object) {
+function sse(reply: { raw: { write: (s: string) => void } }, event: object) {
   reply.raw.write(`data: ${JSON.stringify(event)}\n\n`);
 }
 
@@ -183,37 +310,32 @@ function sseEvent(reply: { raw: { write: (s: string) => void } }, event: object)
 
 export const aiRoutes: FastifyPluginAsync = async (fastify) => {
 
-  fastify.post('/quote-assistant', {
+  /** Multi-turn ERP assistant — streams SSE events */
+  fastify.post('/assistant', {
     schema: { tags: ['AI'] },
     preHandler: [authenticate],
   }, async (request, reply) => {
     const { companyId, branchId, sub } = request.user as { companyId: string; branchId: string; sub: string };
 
-    const body = z.object({ prompt: z.string().min(5).max(2000) }).parse(request.body);
+    const body = z.object({
+      // Full conversation history from the client
+      messages: z.array(z.object({ role: z.enum(['user', 'assistant']), content: z.string() })).min(1),
+    }).parse(request.body);
 
     if (!process.env.ANTHROPIC_API_KEY) {
-      return reply.status(503).send({ error: 'AI assistant not configured. Set ANTHROPIC_API_KEY.' });
+      return reply.status(503).send({ error: 'AI assistant not configured — set ANTHROPIC_API_KEY.' });
     }
 
-    // Set SSE headers
-    reply.raw.writeHead(200, {
-      'Content-Type':  'text/event-stream',
-      'Cache-Control': 'no-cache',
-      Connection:      'keep-alive',
-    });
+    reply.raw.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
 
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-    const messages: Anthropic.MessageParam[] = [
-      { role: 'user', content: body.prompt },
-    ];
+    const messages: Anthropic.MessageParam[] = body.messages.map((m) => ({ role: m.role, content: m.content }));
+
+    let finalText = '';
 
     try {
-      sseEvent(reply, { type: 'status', message: 'Analysing your request…' });
-
       let iterations = 0;
-      const MAX_ITER = 10;
-
-      while (iterations++ < MAX_ITER) {
+      while (iterations++ < 12) {
         const response = await client.messages.create({
           model: 'claude-opus-4-6',
           max_tokens: 4096,
@@ -223,47 +345,61 @@ export const aiRoutes: FastifyPluginAsync = async (fastify) => {
           messages,
         });
 
-        // Emit any text Claude produces
+        // Collect text
         for (const block of response.content) {
-          if (block.type === 'text' && block.text.trim()) {
-            sseEvent(reply, { type: 'thinking', message: block.text });
-          }
+          if (block.type === 'text' && block.text.trim()) finalText = block.text;
         }
 
         if (response.stop_reason === 'end_turn') break;
 
-        const toolUses = response.content.filter(
-          (b): b is Anthropic.ToolUseBlock => b.type === 'tool_use',
-        );
+        const toolUses = response.content.filter((b): b is Anthropic.ToolUseBlock => b.type === 'tool_use');
         if (toolUses.length === 0) break;
 
         messages.push({ role: 'assistant', content: response.content });
-
         const toolResults: Anthropic.ToolResultBlockParam[] = [];
 
         for (const tool of toolUses) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const inp = tool.input as any;
           let result: unknown;
 
-          if (tool.name === 'search_customers') {
-            const { query } = tool.input as { query: string };
-            sseEvent(reply, { type: 'tool', tool: 'search_customers', message: `Searching customers: "${query}"` });
-            const customers = await searchCustomers(companyId, query);
-            sseEvent(reply, { type: 'tool_result', tool: 'search_customers', message: `Found ${customers.length} customer(s)`, data: customers });
-            result = customers;
-          } else if (tool.name === 'search_products') {
-            const { query } = tool.input as { query: string };
-            sseEvent(reply, { type: 'tool', tool: 'search_products', message: `Searching products: "${query}"` });
-            const products = await searchProducts(companyId, query);
-            sseEvent(reply, { type: 'tool_result', tool: 'search_products', message: `Found ${products.length} product(s)`, data: products });
-            result = products;
-          } else if (tool.name === 'create_quote') {
-            const input = tool.input as Parameters<typeof createQuote>[3];
-            sseEvent(reply, { type: 'tool', tool: 'create_quote', message: `Creating quote with ${input.lines.length} line(s)…` });
-            const quote = await createQuote(companyId, branchId, sub, input);
-            sseEvent(reply, { type: 'done', quoteId: quote.quoteId, quoteNumber: quote.quoteNumber, message: `Quote ${quote.quoteNumber} created` });
-            result = quote;
-          } else {
-            result = { error: `Unknown tool: ${tool.name}` };
+          sse(reply, { type: 'tool', tool: tool.name, message: toolCallMessage(tool.name, inp) });
+
+          try {
+            if (tool.name === 'search_customers') {
+              result = await searchCustomers(companyId, inp.query);
+              sse(reply, { type: 'tool_result', tool: tool.name, message: `Found ${(result as []).length} customer(s)` });
+            } else if (tool.name === 'get_customer_summary') {
+              result = await getCustomerSummary(companyId, inp.customerId);
+              sse(reply, { type: 'tool_result', tool: tool.name, message: `Loaded account summary` });
+            } else if (tool.name === 'search_products') {
+              result = await searchProducts(companyId, inp.query);
+              sse(reply, { type: 'tool_result', tool: tool.name, message: `Found ${(result as []).length} product(s)` });
+            } else if (tool.name === 'check_stock') {
+              result = await checkStock(companyId, inp.productQuery);
+              sse(reply, { type: 'tool_result', tool: tool.name, message: `Checked stock levels` });
+            } else if (tool.name === 'search_quotes') {
+              result = await searchQuotes(companyId, inp.query, inp.status);
+              sse(reply, { type: 'tool_result', tool: tool.name, message: `Found ${(result as []).length} quote(s)` });
+            } else if (tool.name === 'search_sales_orders') {
+              result = await searchSalesOrders(companyId, inp.query, inp.status);
+              sse(reply, { type: 'tool_result', tool: tool.name, message: `Found ${(result as []).length} order(s)` });
+            } else if (tool.name === 'list_overdue_invoices') {
+              result = await listOverdueInvoices(companyId);
+              sse(reply, { type: 'tool_result', tool: tool.name, message: `Found ${(result as []).length} overdue invoice(s)` });
+            } else if (tool.name === 'get_business_snapshot') {
+              result = await getBusinessSnapshot(companyId);
+              sse(reply, { type: 'tool_result', tool: tool.name, message: `Business snapshot loaded` });
+            } else if (tool.name === 'create_quote') {
+              const quote = await createQuote(companyId, branchId, sub, inp);
+              result = quote;
+              sse(reply, { type: 'action', action: 'quote_created', data: quote, message: `Quote ${quote.quoteNumber} created` });
+            } else {
+              result = { error: `Unknown tool: ${tool.name}` };
+            }
+          } catch (toolErr) {
+            result = { error: toolErr instanceof Error ? toolErr.message : 'Tool error' };
+            sse(reply, { type: 'tool_result', tool: tool.name, message: `Error: ${(result as { error: string }).error}` });
           }
 
           toolResults.push({ type: 'tool_result', tool_use_id: tool.id, content: JSON.stringify(result) });
@@ -271,11 +407,28 @@ export const aiRoutes: FastifyPluginAsync = async (fastify) => {
 
         messages.push({ role: 'user', content: toolResults });
       }
+
+      sse(reply, { type: 'done', text: finalText });
     } catch (err) {
-      sseEvent(reply, { type: 'error', message: err instanceof Error ? err.message : 'Unknown error' });
-      fastify.log.error(err, 'AI quote assistant error');
+      sse(reply, { type: 'error', message: err instanceof Error ? err.message : 'Unknown error' });
+      fastify.log.error(err, 'AI assistant error');
     }
 
     reply.raw.end();
   });
 };
+
+function toolCallMessage(name: string, inp: Record<string, string>) {
+  const map: Record<string, (i: typeof inp) => string> = {
+    search_customers:    (i) => `Searching customers: "${i.query}"`,
+    get_customer_summary:(i) => `Loading account summary…`,
+    search_products:     (i) => `Searching products: "${i.query}"`,
+    check_stock:         (i) => `Checking stock for "${i.productQuery}"`,
+    search_quotes:       (i) => `Searching quotes: "${i.query}"`,
+    search_sales_orders: (i) => `Searching orders: "${i.query}"`,
+    list_overdue_invoices:()  => `Fetching overdue invoices…`,
+    get_business_snapshot:()  => `Loading business snapshot…`,
+    create_quote:        (i)  => `Creating quote (${(i.lines as unknown as [])?.length ?? '?'} lines)…`,
+  };
+  return map[name]?.(inp) ?? `Running ${name}…`;
+}
