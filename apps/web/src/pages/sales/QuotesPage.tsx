@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { format, addDays } from 'date-fns';
 import { ProductSearchCombobox } from '../../components/ui/ProductSearchCombobox';
+import { AiQuoteAssistant } from '../../components/ai/AiQuoteAssistant';
 
 const STATUS_BADGE: Record<string, string> = {
   DRAFT:     'badge-gray',
@@ -393,13 +394,14 @@ export function QuotesPage() {
           <h1 className="page-title">Quotes</h1>
           <p className="page-subtitle">{data?.meta?.total ?? 0} total · {openCount} open · {fmtCurrency(totalValue)} pipeline</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
           <select className="input h-9 text-xs w-40" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
             <option value="">All statuses</option>
             {Object.entries(STATUS_LABEL).map(([v, label]) => (
               <option key={v} value={v}>{label}</option>
             ))}
           </select>
+          <AiQuoteAssistant />
           <button className="btn-primary btn-sm" onClick={() => setModalOpen(true)}><Plus size={13} /> New Quote</button>
         </div>
       </div>

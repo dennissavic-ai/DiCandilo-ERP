@@ -40,6 +40,9 @@ const envSchema = z.object({
   AUTH_RATE_LIMIT_MAX: z.coerce.number().default(10),
   AUTH_RATE_LIMIT_WINDOW: z.coerce.number().default(60000),
 
+  // AI / Anthropic
+  ANTHROPIC_API_KEY: z.string().optional(),
+
   // Account lockout (SOC2 CC6 / ISO 27001 A.9.4.2)
   MAX_LOGIN_ATTEMPTS: z.coerce.number().default(5),
   LOCKOUT_DURATION_MINUTES: z.coerce.number().default(15),
