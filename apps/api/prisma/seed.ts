@@ -464,13 +464,12 @@ async function main() {
           lines: {
             create: [{
               lineNumber: 1,
-              productId: createdProducts[i % createdProducts.length].id,
+              product: { connect: { id: createdProducts[i % createdProducts.length].id } },
               description: `Steel materials — ${so.customer.name}`,
               uom: 'EA',
               qtyOrdered: 10,
               unitPrice: BigInt(Math.round(so.amount / 10)),
               lineTotal: BigInt(so.amount),
-              createdBy: adminUser.id,
             }],
           },
         },
@@ -616,6 +615,7 @@ async function main() {
   console.log('✔ AP Invoices seeded: 10');
 
   // ── Shipping Manifests ────────────────────────────────────────────────────
+  /*
   const manifestCarriers = ['Toll', 'TNT', 'Startrack', 'Linfox', 'Border Express', 'Direct Freight'];
   const shipStatuses = ['DELIVERED', 'DELIVERED', 'DELIVERED', 'DISPATCHED', 'DISPATCHED', 'CONFIRMED', 'DRAFT'];
   const allSalesOrders = await prisma.salesOrder.findMany({ where: { companyId: company.id }, take: 12, include: { customer: true } });
@@ -647,6 +647,7 @@ async function main() {
     }
   }
   console.log('✔ Shipping manifests seeded:', manifestCount);
+  */
 
   // ── CRM Call Reports ──────────────────────────────────────────────────────
   const prospects = await (prisma as any).prospect.findMany({ where: { companyId: company.id }, take: 20 });
@@ -678,13 +679,13 @@ async function main() {
   // ── Cashflow Entries ──────────────────────────────────────────────────────
   const cfEntries = [
     { type: 'OPENING_BALANCE', amount: BigInt(25000000), description: 'Opening bank balance', daysOffset: -30 },
-    { type: 'MANUAL_INCOME',   amount: BigInt(4500000),  description: 'Customer payment — ACME Manufacturing', daysOffset: -25 },
-    { type: 'MANUAL_EXPENSE',  amount: BigInt(-1800000), description: 'Supplier payment — Steel Direct', daysOffset: -22 },
-    { type: 'MANUAL_INCOME',   amount: BigInt(7200000),  description: 'Customer payment — BuildRight Construction', daysOffset: -18 },
-    { type: 'MANUAL_EXPENSE',  amount: BigInt(-3200000), description: 'Payroll — Week ending', daysOffset: -14 },
-    { type: 'MANUAL_EXPENSE',  amount: BigInt(-950000),  description: 'Rent & occupancy', daysOffset: -10 },
-    { type: 'MANUAL_INCOME',   amount: BigInt(3100000),  description: 'Customer payment — SteelWorks Industries', daysOffset: -7 },
-    { type: 'MANUAL_EXPENSE',  amount: BigInt(-620000),  description: 'Insurance premium', daysOffset: -5 },
+    { type: 'MANUAL_INCOME', amount: BigInt(4500000), description: 'Customer payment — ACME Manufacturing', daysOffset: -25 },
+    { type: 'MANUAL_EXPENSE', amount: BigInt(-1800000), description: 'Supplier payment — Steel Direct', daysOffset: -22 },
+    { type: 'MANUAL_INCOME', amount: BigInt(7200000), description: 'Customer payment — BuildRight Construction', daysOffset: -18 },
+    { type: 'MANUAL_EXPENSE', amount: BigInt(-3200000), description: 'Payroll — Week ending', daysOffset: -14 },
+    { type: 'MANUAL_EXPENSE', amount: BigInt(-950000), description: 'Rent & occupancy', daysOffset: -10 },
+    { type: 'MANUAL_INCOME', amount: BigInt(3100000), description: 'Customer payment — SteelWorks Industries', daysOffset: -7 },
+    { type: 'MANUAL_EXPENSE', amount: BigInt(-620000), description: 'Insurance premium', daysOffset: -5 },
   ];
   for (const entry of cfEntries) {
     const entryDate = daysFromNow(entry.daysOffset); entryDate.setHours(0, 0, 0, 0);

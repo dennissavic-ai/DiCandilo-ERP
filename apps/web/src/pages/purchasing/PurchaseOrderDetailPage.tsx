@@ -67,9 +67,9 @@ export function PurchaseOrderDetailPage() {
   const lines: any[] = p?.lines ?? [];
   const total = p?.totalCost ?? lines.reduce((s: number, l: any) => s + (l.lineTotal ?? 0), 0);
 
-  const canSubmit  = p?.status === 'DRAFT';
+  const canSubmit = p?.status === 'DRAFT';
   const canApprove = p?.status === 'SUBMITTED';
-  const canReceive = ['APPROVED','PARTIALLY_RECEIVED'].includes(p?.status ?? '');
+  const canReceive = ['APPROVED', 'PARTIALLY_RECEIVED'].includes(p?.status ?? '');
 
   function openReceive() {
     const defaultLocationId = locations[0]?.id ?? '';
@@ -96,7 +96,7 @@ export function PurchaseOrderDetailPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <span className={STATUS_BADGE[p?.status] ?? 'badge-gray'}>{p?.status?.replace(/_/g,' ')}</span>
+          <span className={STATUS_BADGE[p?.status] ?? 'badge-gray'}>{p?.status?.replace(/_/g, ' ')}</span>
           {canSubmit && (
             <button className="btn-secondary btn-sm" onClick={() => submitMutation.mutate()} disabled={submitMutation.isPending}>
               <Send size={12} /> Submit
@@ -221,17 +221,30 @@ export function PurchaseOrderDetailPage() {
       {/* Add Line Modal */}
       <Modal open={addLineOpen} onClose={() => setAddLineOpen(false)} title="Add PO Line"
         footer={<>
-          <button className="btn-secondary btn-sm" onClick={() => setAddLineOpen(false)}>Cancel</button>
-          <button className="btn-primary btn-sm" disabled={!newLine.description}>Add</button>
+          <button className="btn-secondary btn-sm" onClick={() => { setAddLineOpen(false); setNewLine({ ...BLANK_LINE }); }}>Cancel</button>
+          <button className="btn-primary btn-sm" disabled={!newLine.productId || !newLine.description} onClick={() => {
+            purchasingApi.addLine(id!, {
+              productId: newLine.productId,
+              description: newLine.description,
+              uom: newLine.uom,
+              qtyOrdered: newLine.qtyOrdered,
+              unitPrice: newLine.unitCost,
+            }).then(() => {
+              qc.invalidateQueries({ queryKey: ['po', id] });
+              setAddLineOpen(false);
+              setNewLine({ ...BLANK_LINE });
+            });
+          }}>Add</button>
         </>}>
         <div className="space-y-4">
           <div className="form-group">
             <label className="label">Product</label>
-            <select className="select" onChange={(e) => {
+            <select className="input" value={newLine.productId} onChange={(e) => {
               const p = (productsData?.data ?? []).find((pr: any) => pr.id === e.target.value);
               if (p) setNewLine((l) => ({ ...l, productId: p.id, description: p.description, uom: p.uom }));
+              else setNewLine((l) => ({ ...l, productId: '' }));
             }}>
-              <option value="">Select product or enter manually…</option>
+              <option value="">Select product…</option>
               {(productsData?.data ?? []).map((p: any) => <option key={p.id} value={p.id}>{p.code} — {p.description}</option>)}
             </select>
           </div>
@@ -247,8 +260,8 @@ export function PurchaseOrderDetailPage() {
             </div>
             <div className="form-group">
               <label className="label">UOM</label>
-              <select className="select" value={newLine.uom} onChange={(e) => setNewLine((l) => ({ ...l, uom: e.target.value }))}>
-                {['EA','KG','M','M2','M3','LM','PC','SET','L','T'].map((u) => <option key={u}>{u}</option>)}
+              <select className="input" value={newLine.uom} onChange={(e) => setNewLine((l) => ({ ...l, uom: e.target.value }))}>
+                {['EA', 'KG', 'M', 'M2', 'M3', 'LM', 'PC', 'SET', 'L', 'T'].map((u) => <option key={u}>{u}</option>)}
               </select>
             </div>
             <div className="form-group">

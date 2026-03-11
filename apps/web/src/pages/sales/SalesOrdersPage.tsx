@@ -1,30 +1,94 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { salesApi, inventoryApi } from '../../services/api';
 import { Plus, Search, Filter, ShoppingCart, X, Trash2, FileText } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 
 const STATUS_BADGE: Record<string, string> = {
-  DRAFT:             'badge-gray',
-  CONFIRMED:         'badge-blue',
-  IN_PRODUCTION:     'badge-amber',
-  READY_TO_SHIP:     'badge-teal',
+  DRAFT: 'badge-gray',
+  CONFIRMED: 'badge-blue',
+  IN_PRODUCTION: 'badge-amber',
+  READY_TO_SHIP: 'badge-teal',
   PARTIALLY_SHIPPED: 'badge-yellow',
-  SHIPPED:           'badge-green',
-  INVOICED:          'badge-violet',
-  CLOSED:            'badge-green',
-  CANCELLED:         'badge-red',
+  SHIPPED: 'badge-green',
+  INVOICED: 'badge-violet',
+  CLOSED: 'badge-green',
+  CANCELLED: 'badge-red',
 };
 
 function fmtCurrency(cents: number) {
   const d = cents / 100;
   if (d >= 1_000_000) return `$${(d / 1_000_000).toFixed(2)}M`;
-  if (d >= 1_000)     return `$${(d / 1_000).toFixed(0)}K`;
+  if (d >= 1_000) return `$${(d / 1_000).toFixed(0)}K`;
   return `$${d.toFixed(2)}`;
 }
 
-const EMPTY_LINE = { description: '', qty: '', unitPrice: '' };
+const EMPTY_LINE = { productId: '', description: '', qty: '', unitPrice: '' };
+
+function ProductSearchSelect({ products, value, onChange }: { products: any[]; value: string; onChange: (id: string, description: string) => void }) {
+  const [search, setSearch] = useState('');
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (value) {
+      const p = products.find(p => p.id === value);
+      if (p) setSearch(p.code);
+    } else {
+      setSearch('');
+    }
+  }, [value, products]);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const filtered = search ? products.filter(p => p.code.toLowerCase().includes(search.toLowerCase()) || p.description?.toLowerCase().includes(search.toLowerCase())) : products;
+
+  return (
+    <div className="relative" ref={containerRef}>
+      <input
+        className="input text-sm w-full"
+        placeholder="Search product..."
+        value={search}
+        onFocus={() => { setOpen(true); setSearch(''); }}
+        onChange={e => {
+          setSearch(e.target.value);
+          if (!e.target.value) onChange('', '');
+          setOpen(true);
+        }}
+      />
+      {open && (
+        <div className="absolute z-50 w-full mt-1 bg-white border border-border rounded-md shadow-lg max-h-60 overflow-y-auto">
+          {filtered.length > 0 ? filtered.map(p => (
+            <div
+              key={p.id}
+              className="px-3 py-2 text-sm hover:bg-steel-50 cursor-pointer border-b border-border last:border-b-0"
+              onClick={() => {
+                onChange(p.id, p.description ?? '');
+                setSearch(p.code);
+                setOpen(false);
+              }}
+            >
+              <div className="font-semibold text-primary-700">{p.code}</div>
+              <div className="text-xs text-muted-foreground truncate">{p.description}</div>
+            </div>
+          )) : (
+            <div className="px-3 py-4 text-sm text-center text-muted-foreground">No products found</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 
 type CreateMode = 'blank' | 'from_quote';
 
@@ -56,6 +120,12 @@ export function SalesOrdersPage() {
     queryKey: ['quotes-dd'],
     queryFn: () => salesApi.listQuotes({ limit: 200, status: 'ACCEPTED' }).then((r) => r.data),
     enabled: newOpen && mode === 'from_quote',
+  });
+
+  const { data: productsData } = useQuery({
+    queryKey: ['products'],
+    queryFn: () => inventoryApi.listProducts({ limit: 500 }).then((r: any) => r.data),
+    enabled: newOpen && mode === 'blank',
   });
 
   const convertMutation = useMutation({
@@ -103,10 +173,16 @@ export function SalesOrdersPage() {
       setFormError('All line items require description, qty, and unit price.'); return;
     }
     createMutation.mutate({
-      ...form,
+      customerId: form.customerId,
+      customerPoNumber: form.customerPoNumber || undefined,
+      currencyCode: form.currency,
+      requiredDate: form.requiredDate ? new Date(form.requiredDate).toISOString() : undefined,
+      notes: form.notes || undefined,
       lines: lines.map(l => ({
+        productId: l.productId || undefined,
         description: l.description,
-        quantity: parseFloat(l.qty),
+        uom: 'EA',
+        qty: parseFloat(l.qty),
         unitPrice: Math.round(parseFloat(l.unitPrice) * 100),
       })),
     });
@@ -118,8 +194,8 @@ export function SalesOrdersPage() {
     o.customer?.name?.toLowerCase().includes(search.toLowerCase()),
   );
 
-  const totalOpen   = orders.filter((o: any) => !['CLOSED','CANCELLED','INVOICED'].includes(o.status)).length;
-  const totalValue  = orders.reduce((s: number, o: any) => s + (o.totalAmount ?? 0), 0);
+  const totalOpen = orders.filter((o: any) => !['CLOSED', 'CANCELLED', 'INVOICED'].includes(o.status)).length;
+  const totalValue = orders.reduce((s: number, o: any) => s + (o.totalAmount ?? 0), 0);
   const isPending = createMutation.isPending || convertMutation.isPending;
 
   return (
@@ -185,23 +261,23 @@ export function SalesOrdersPage() {
             <tbody>
               {isLoading
                 ? Array.from({ length: 8 }).map((_, i) => (
-                    <tr key={i}>
-                      {Array.from({ length: 7 }).map((__, j) => (
-                        <td key={j}><div className="skeleton h-4 w-24" /></td>
-                      ))}
-                    </tr>
-                  ))
+                  <tr key={i}>
+                    {Array.from({ length: 7 }).map((__, j) => (
+                      <td key={j}><div className="skeleton h-4 w-24" /></td>
+                    ))}
+                  </tr>
+                ))
                 : orders.map((o: any) => (
-                    <tr key={o.id} className="cursor-pointer" onClick={() => navigate(`/sales/orders/${o.id}`)}>
-                      <td className="font-mono text-xs font-semibold text-primary-700">{o.orderNumber}</td>
-                      <td className="font-medium text-foreground">{o.customer?.name ?? '—'}</td>
-                      <td><span className={STATUS_BADGE[o.status] ?? 'badge-gray'}>{o.status?.replace(/_/g,' ')}</span></td>
-                      <td className="text-steel-500 text-xs">{o.lines?.length ?? 0} lines</td>
-                      <td className="text-right font-mono text-sm font-semibold tabular-nums">{fmtCurrency(o.totalAmount ?? 0)}</td>
-                      <td className="text-steel-500 text-xs">{o.orderDate ? format(new Date(o.orderDate), 'dd MMM yyyy') : '—'}</td>
-                      <td className="text-xs">{o.requiredDate ? format(new Date(o.requiredDate), 'dd MMM yyyy') : '—'}</td>
-                    </tr>
-                  ))}
+                  <tr key={o.id} className="cursor-pointer" onClick={() => navigate(`/sales/orders/${o.id}`)}>
+                    <td className="font-mono text-xs font-semibold text-primary-700">{o.orderNumber}</td>
+                    <td className="font-medium text-foreground">{o.customer?.name ?? '—'}</td>
+                    <td><span className={STATUS_BADGE[o.status] ?? 'badge-gray'}>{o.status?.replace(/_/g, ' ')}</span></td>
+                    <td className="text-steel-500 text-xs">{o.lines?.length ?? 0} lines</td>
+                    <td className="text-right font-mono text-sm font-semibold tabular-nums">{fmtCurrency(o.totalAmount ?? 0)}</td>
+                    <td className="text-steel-500 text-xs">{o.orderDate ? format(new Date(o.orderDate), 'dd MMM yyyy') : '—'}</td>
+                    <td className="text-xs">{o.requiredDate ? format(new Date(o.requiredDate), 'dd MMM yyyy') : '—'}</td>
+                  </tr>
+                ))}
             </tbody>
           </table>
         </div>
@@ -305,7 +381,14 @@ export function SalesOrdersPage() {
                     </div>
                     <div className="space-y-2">
                       {lines.map((line, i) => (
-                        <div key={i} className="grid grid-cols-[1fr_80px_100px_32px] gap-2 items-center">
+                        <div key={i} className="grid grid-cols-[1fr_1fr_80px_100px_32px] gap-2 items-center">
+                          <ProductSearchSelect
+                            products={productsData?.data ?? []}
+                            value={line.productId}
+                            onChange={(id, desc) => {
+                              setLines(ls => ls.map((l, j) => j === i ? { ...l, productId: id, description: desc } : l));
+                            }}
+                          />
                           <input
                             className="input text-sm"
                             placeholder="Description"

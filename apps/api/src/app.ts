@@ -48,6 +48,13 @@ const app = Fastify({
   },
 });
 
+Object.defineProperty(BigInt.prototype, 'toJSON', {
+  get() {
+    return () => Number(this);
+  },
+});
+
+
 async function buildApp() {
   // ── Security headers (OWASP API8 / SOC2 CC6) ──────────────────────────────
   await app.register(helmet, {
@@ -171,9 +178,9 @@ async function buildApp() {
   await app.register(automationRoutes, { prefix: `${prefix}/automation` });
   await app.register(complianceRoutes, { prefix: `${prefix}/compliance` });
   await app.register(fulfillmentRoutes, { prefix: `${prefix}/inventory/fulfillment` });
-  await app.register(crmRoutes,         { prefix: `${prefix}/crm` });
+  await app.register(crmRoutes, { prefix: `${prefix}/crm` });
   await app.register(integrationRoutes, { prefix: `${prefix}/integrations` });
-  await app.register(websocketPlugin,   { prefix: `${prefix}/ws` });
+  await app.register(websocketPlugin, { prefix: `${prefix}/ws` });
 
   // ── Graceful shutdown ─────────────────────────────────────────────────────
   const signals: NodeJS.Signals[] = ['SIGINT', 'SIGTERM'];

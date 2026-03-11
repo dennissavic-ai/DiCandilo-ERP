@@ -2,7 +2,7 @@ const { app, BrowserWindow, shell, Menu } = require('electron');
 const path = require('path');
 
 const PRODUCTION_URL = process.env.ERP_URL || 'https://sucasa.services';
-const DEV_URL = 'http://localhost:4000';
+const DEV_URL = 'http://localhost:3000';
 
 const isDev = process.env.ELECTRON_ENV === 'development';
 const appURL = isDev ? DEV_URL : PRODUCTION_URL;

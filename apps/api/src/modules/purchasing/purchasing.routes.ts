@@ -50,10 +50,12 @@ export const purchasingRoutes: FastifyPluginAsync = async (fastify) => {
       const { search } = request.query as { search?: string };
       const where = {
         companyId, deletedAt: null, isActive: true,
-        ...(search && { OR: [
-          { name: { contains: search, mode: 'insensitive' as const } },
-          { code: { contains: search, mode: 'insensitive' as const } },
-        ]}),
+        ...(search && {
+          OR: [
+            { name: { contains: search, mode: 'insensitive' as const } },
+            { code: { contains: search, mode: 'insensitive' as const } },
+          ]
+        }),
       };
       const [data, total] = await Promise.all([
         prisma.supplier.findMany({ where, skip, take, orderBy: { name: 'asc' } }),
@@ -217,6 +219,51 @@ export const purchasingRoutes: FastifyPluginAsync = async (fastify) => {
       });
       await writeAuditLog(request, 'CREATE', 'PurchaseOrder', po.id, null, { poNumber });
       return reply.status(201).send(po);
+    } catch (err) { return handleError(reply, err); }
+  });
+
+  // Add line to existing PO
+  fastify.post('/orders/:id/lines', { preHandler: [authenticate, requirePermission('purchasing', 'create')] }, async (request, reply) => {
+    try {
+      const { companyId, sub } = request.user as { companyId: string; sub: string };
+      const { id } = request.params as { id: string };
+
+      const po = await prisma.purchaseOrder.findFirst({
+        where: { id, companyId, deletedAt: null },
+        include: { lines: true },
+      });
+      if (!po) throw new NotFoundError('PurchaseOrder', id);
+      if (po.status !== 'DRAFT') throw new Error('Can only add lines to DRAFT POs');
+
+      const body = poLineSchema.parse(request.body);
+      const nextLineNumber = po.lines.length + 1;
+      const lineTotal = Math.round(body.qtyOrdered * body.unitPrice);
+
+      const line = await prisma.purchaseOrderLine.create({
+        data: {
+          purchaseOrderId: id,
+          lineNumber: nextLineNumber,
+          productId: body.productId,
+          description: body.description,
+          uom: body.uom,
+          qtyOrdered: body.qtyOrdered,
+          unitPrice: body.unitPrice,
+          lineTotal,
+          expectedDate: body.expectedDate ? new Date(body.expectedDate) : undefined,
+          notes: body.notes,
+        },
+      });
+
+      // Recalculate PO totals
+      const allLines = await prisma.purchaseOrderLine.findMany({ where: { purchaseOrderId: id } });
+      const subtotal = allLines.reduce((sum, l) => sum + Number(l.lineTotal), 0);
+      const totalCost = subtotal + Number(po.freightCost) + Number(po.dutyCost) + Number(po.otherCosts);
+      await prisma.purchaseOrder.update({
+        where: { id },
+        data: { subtotal, totalCost, updatedBy: sub },
+      });
+
+      return reply.status(201).send(line);
     } catch (err) { return handleError(reply, err); }
   });
 

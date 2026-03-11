@@ -87,7 +87,7 @@ export const authApi = {
 export const inventoryApi = {
   // Products
   listProducts: (params?: object) => api.get<PaginatedResponse<Product>>('/inventory/products', { params }),
-  getProducts:  (params?: object) => api.get<PaginatedResponse<Product>>('/inventory/products', { params }),
+  getProducts: (params?: object) => api.get<PaginatedResponse<Product>>('/inventory/products', { params }),
   importProducts: (file: File) => { const f = new FormData(); f.append('file', file); return api.post('/inventory/products/import', f, { headers: { 'Content-Type': 'multipart/form-data' } }); },
   importInventoryLevels: (file: File) => { const f = new FormData(); f.append('file', file); return api.post('/inventory/items/import', f, { headers: { 'Content-Type': 'multipart/form-data' } }); },
   getProduct: (id: string) => api.get<Product>(`/inventory/products/${id}`),
@@ -104,25 +104,25 @@ export const inventoryApi = {
   createLocation: (data: object) => api.post('/inventory/locations', data),
 
   // Items
-  listItems:       (params?: object) => api.get<PaginatedResponse<InventoryItem>>('/inventory/items', { params }),
-  getStockOnHand:  (params?: object) => api.get<PaginatedResponse<InventoryItem>>('/inventory/items', { params }),
+  listItems: (params?: object) => api.get<PaginatedResponse<InventoryItem>>('/inventory/items', { params }),
+  getStockOnHand: (params?: object) => api.get<PaginatedResponse<InventoryItem>>('/inventory/items', { params }),
   getItem: (id: string) => api.get<InventoryItem>(`/inventory/items/${id}`),
   createItem: (data: object) => api.post<InventoryItem>('/inventory/items', data),
 
   // Operations
-  adjustStock:      (data: object)   => api.post('/inventory/adjust', data),
-  receiveStock:     (data: object)   => api.post('/inventory/receive', data),
-  uploadDocument:   (file: File, sourceType: string, sourceId: string) => {
+  adjustStock: (data: object) => api.post('/inventory/adjust', data),
+  receiveStock: (data: object) => api.post('/inventory/receive', data),
+  uploadDocument: (file: File, sourceType: string, sourceId: string) => {
     const f = new FormData(); f.append('file', file); f.append('sourceType', sourceType); f.append('sourceId', sourceId);
     return api.post('/inventory/documents', f, { headers: { 'Content-Type': 'multipart/form-data' } });
   },
-  createTransfer:   (data: object)   => api.post('/inventory/transfers', data),
-  listTransfers:    (params?: object) => api.get('/inventory/transfers', { params }),
-  getValuation:     (params?: object) => api.get('/inventory/valuation', { params }),
-  getTransactions:  (itemId: string, params?: object) => api.get(`/inventory/items/${itemId}/transactions`, { params }),
+  createTransfer: (data: object) => api.post('/inventory/transfers', data),
+  listTransfers: (params?: object) => api.get('/inventory/transfers', { params }),
+  getValuation: (params?: object) => api.get('/inventory/valuation', { params }),
+  getTransactions: (itemId: string, params?: object) => api.get(`/inventory/items/${itemId}/transactions`, { params }),
   // Dashboard & audit
-  getDashboard:     ()               => api.get('/inventory/dashboard'),
-  listAdjustments:  (params?: object) => api.get('/inventory/adjustments', { params }),
+  getDashboard: () => api.get('/inventory/dashboard'),
+  listAdjustments: (params?: object) => api.get('/inventory/adjustments', { params }),
 
   // MTRs
   listMTRs: (itemId: string) => api.get(`/inventory/items/${itemId}/mtrs`),
@@ -146,7 +146,7 @@ export const salesApi = {
   createQuote: (data: object) => api.post('/sales/quotes', data),
   convertQuote: (id: string) => api.post(`/sales/quotes/${id}/convert`),
   listOrders: (params?: object) => api.get<PaginatedResponse<SalesOrder>>('/sales/orders', { params }),
-  getOrders:  (params?: object) => api.get<PaginatedResponse<SalesOrder>>('/sales/orders', { params }),
+  getOrders: (params?: object) => api.get<PaginatedResponse<SalesOrder>>('/sales/orders', { params }),
   getOrder: (id: string) => api.get<SalesOrder>(`/sales/orders/${id}`),
   createOrder: (data: object) => api.post('/sales/orders', data),
   confirmOrder: (id: string) => api.patch(`/sales/orders/${id}/confirm`),
@@ -164,6 +164,7 @@ export const purchasingApi = {
   listOrders: (params?: object) => api.get<PaginatedResponse<PurchaseOrder>>('/purchasing/orders', { params }),
   getOrder: (id: string) => api.get<PurchaseOrder>(`/purchasing/orders/${id}`),
   createOrder: (data: object) => api.post('/purchasing/orders', data),
+  addLine: (poId: string, data: object) => api.post(`/purchasing/orders/${poId}/lines`, data),
   submitOrder: (id: string) => api.patch(`/purchasing/orders/${id}/submit`),
   approveOrder: (id: string) => api.patch(`/purchasing/orders/${id}/approve`),
   createReceipt: (poId: string, data: object) => api.post(`/purchasing/orders/${poId}/receipts`, data),
@@ -175,7 +176,7 @@ export const accountingApi = {
   createAccount: (data: object) => api.post('/accounting/accounts', data),
   updateAccount: (id: string, data: object) => api.put(`/accounting/accounts/${id}`, data),
   listInvoices: (params?: object) => api.get<PaginatedResponse<Invoice>>('/accounting/invoices', { params }),
-  getInvoices:  (params?: object) => api.get<PaginatedResponse<Invoice>>('/accounting/invoices', { params }),
+  getInvoices: (params?: object) => api.get<PaginatedResponse<Invoice>>('/accounting/invoices', { params }),
   getInvoice: (id: string) => api.get<Invoice>(`/accounting/invoices/${id}`),
   createInvoice: (data: object) => api.post('/accounting/invoices', data),
   createInvoiceFromOrder: (soId: string) => api.post(`/accounting/invoices/from-order/${soId}`),
@@ -188,10 +189,10 @@ export const accountingApi = {
   createAPInvoice: (data: object) => api.post('/accounting/ap-invoices', data),
   recordAPPayment: (id: string, data: object) => api.post(`/accounting/ap-invoices/${id}/payments`, data),
   // Dashboard + cashflow
-  getDashboard:        ()             => api.get('/accounting/dashboard'),
-  getCashFlow:         ()             => api.get('/accounting/cashflow'),
-  addCashFlowEntry:    (data: object) => api.post('/accounting/cashflow/entries', data),
-  deleteCashFlowEntry: (id: string)   => api.delete(`/accounting/cashflow/entries/${id}`),
+  getDashboard: () => api.get('/accounting/dashboard'),
+  getCashFlow: () => api.get('/accounting/cashflow'),
+  addCashFlowEntry: (data: object) => api.post('/accounting/cashflow/entries', data),
+  deleteCashFlowEntry: (id: string) => api.delete(`/accounting/cashflow/entries/${id}`),
 };
 
 // Reporting
@@ -210,10 +211,10 @@ export const processingApi = {
   createWorkOrder: (data: object) => api.post('/processing/work-orders', data),
   updateStatus: (id: string, status: string) => api.patch(`/processing/work-orders/${id}/status`, { status }),
   getSchedule: (params?: object) => api.get('/processing/schedule', { params }),
-  getKanban:       ()             => api.get('/processing/kanban'),
-  getDashboard:    ()             => api.get('/processing/dashboard'),
+  getKanban: () => api.get('/processing/kanban'),
+  getDashboard: () => api.get('/processing/dashboard'),
   listTimeEntries: (params?: object) => api.get('/processing/time-entries', { params }),
-  addTimeEntry:    (data: object) => api.post('/processing/time-entries', data),
+  addTimeEntry: (data: object) => api.post('/processing/time-entries', data),
   scan: (data: { jobBarcode: string; stationBarcode?: string; eventType: 'CHECK_IN' | 'CHECK_OUT' }) =>
     api.post('/processing/scan', data),
 };
@@ -259,32 +260,32 @@ export const fulfillmentApi = {
 // CRM
 export const crmApi = {
   // Pipeline stages
-  listStages:  () => api.get<PipelineStage[]>('/crm/pipeline-stages'),
-  saveStages:  (stages: Omit<PipelineStage, 'id' | 'companyId' | 'createdAt' | 'updatedAt'>[]) =>
+  listStages: () => api.get<PipelineStage[]>('/crm/pipeline-stages'),
+  saveStages: (stages: Omit<PipelineStage, 'id' | 'companyId' | 'createdAt' | 'updatedAt'>[]) =>
     api.put<PipelineStage[]>('/crm/pipeline-stages', { stages }),
 
   // Prospects
-  listProspects:  (params?: object) => api.get('/crm/prospects', { params }),
-  getProspect:    (id: string)      => api.get(`/crm/prospects/${id}`),
-  createProspect: (data: object)    => api.post('/crm/prospects', data),
+  listProspects: (params?: object) => api.get('/crm/prospects', { params }),
+  getProspect: (id: string) => api.get(`/crm/prospects/${id}`),
+  createProspect: (data: object) => api.post('/crm/prospects', data),
   updateProspect: (id: string, data: object) => api.put(`/crm/prospects/${id}`, data),
-  changeStage:    (id: string, stage: string) => api.patch(`/crm/prospects/${id}/stage`, { stage }),
-  deleteProspect: (id: string)      => api.delete(`/crm/prospects/${id}`),
+  changeStage: (id: string, stage: string) => api.patch(`/crm/prospects/${id}/stage`, { stage }),
+  deleteProspect: (id: string) => api.delete(`/crm/prospects/${id}`),
 
   // Call reports
-  listCallReports:  (params?: object) => api.get('/crm/call-reports', { params }),
-  createCallReport: (data: object)    => api.post('/crm/call-reports', data),
+  listCallReports: (params?: object) => api.get('/crm/call-reports', { params }),
+  createCallReport: (data: object) => api.post('/crm/call-reports', data),
 };
 
 // Integrations
 export const integrationApi = {
-  listConfigs:    ()                          => api.get('/integrations/config'),
-  getConfig:      (provider: string)          => api.get(`/integrations/config/${provider}`),
-  saveConfig:     (provider: string, data: object) => api.put(`/integrations/config/${provider}`, data),
-  disconnect:     (provider: string)          => api.delete(`/integrations/config/${provider}`),
-  runSync:        (provider: string)          => api.post(`/integrations/sync/${provider}`),
-  listSyncLogs:   (params?: object)           => api.get('/integrations/sync/logs', { params }),
-  getSyncLog:     (id: string)                => api.get(`/integrations/sync/logs/${id}`),
+  listConfigs: () => api.get('/integrations/config'),
+  getConfig: (provider: string) => api.get(`/integrations/config/${provider}`),
+  saveConfig: (provider: string, data: object) => api.put(`/integrations/config/${provider}`, data),
+  disconnect: (provider: string) => api.delete(`/integrations/config/${provider}`),
+  runSync: (provider: string) => api.post(`/integrations/sync/${provider}`),
+  listSyncLogs: (params?: object) => api.get('/integrations/sync/logs', { params }),
+  getSyncLog: (id: string) => api.get(`/integrations/sync/logs/${id}`),
 };
 
 // Automation
