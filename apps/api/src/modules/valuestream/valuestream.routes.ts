@@ -2,6 +2,7 @@ import { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../../config/database';
 import { authenticate } from '../../middleware/auth.middleware';
+import { emitToCompany } from '../../websocket/ws.plugin';
 
 const CreateMapSchema = z.object({
   name: z.string().min(1).max(120),
@@ -60,6 +61,7 @@ const valuestream: FastifyPluginAsync = async (fastify) => {
       },
       include: { nodes: { orderBy: { position: 'asc' } } },
     });
+    emitToCompany(user.companyId, 'VSM_UPDATE', { mapId: map.id, action: 'MAP_CREATED', map });
     return reply.status(201).send(map);
   });
 
@@ -89,6 +91,7 @@ const valuestream: FastifyPluginAsync = async (fastify) => {
       data: { ...body, updatedBy: user.sub, updatedAt: new Date() },
       include: { nodes: { orderBy: { position: 'asc' } } },
     });
+    emitToCompany(user.companyId, 'VSM_UPDATE', { mapId: id, action: 'MAP_UPDATED', map: updated });
     return updated;
   });
 
@@ -104,6 +107,7 @@ const valuestream: FastifyPluginAsync = async (fastify) => {
       where: { id },
       data: { deletedAt: new Date(), updatedBy: user.sub, updatedAt: new Date() },
     });
+    emitToCompany(user.companyId, 'VSM_UPDATE', { mapId: id, action: 'MAP_DELETED' });
     return { ok: true };
   });
 
@@ -143,6 +147,7 @@ const valuestream: FastifyPluginAsync = async (fastify) => {
       data: { updatedAt: new Date(), updatedBy: user.sub },
     });
 
+    emitToCompany(user.companyId, 'VSM_UPDATE', { mapId: id, action: 'NODE_ADDED', node });
     return reply.status(201).send(node);
   });
 
@@ -170,6 +175,7 @@ const valuestream: FastifyPluginAsync = async (fastify) => {
       data: { updatedAt: new Date(), updatedBy: user.sub },
     });
 
+    emitToCompany(user.companyId, 'VSM_UPDATE', { mapId: id, action: 'NODE_UPDATED', node: updated });
     return updated;
   });
 
@@ -190,6 +196,7 @@ const valuestream: FastifyPluginAsync = async (fastify) => {
       data: { updatedAt: new Date(), updatedBy: user.sub },
     });
 
+    emitToCompany(user.companyId, 'VSM_UPDATE', { mapId: id, action: 'NODE_DELETED', nodeId });
     return { ok: true };
   });
 
@@ -222,6 +229,8 @@ const valuestream: FastifyPluginAsync = async (fastify) => {
       where: { mapId: id },
       orderBy: { position: 'asc' },
     });
+
+    emitToCompany(user.companyId, 'VSM_UPDATE', { mapId: id, action: 'NODES_REORDERED', nodes });
     return nodes;
   });
 
@@ -325,6 +334,8 @@ const valuestream: FastifyPluginAsync = async (fastify) => {
       where: { id },
       include: { nodes: { orderBy: { position: 'asc' } } },
     });
+
+    emitToCompany(user.companyId, 'VSM_UPDATE', { mapId: id, action: 'MAP_PROMOTED', map: updatedMap });
     return updatedMap;
   });
 };

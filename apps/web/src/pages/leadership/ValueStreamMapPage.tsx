@@ -1,10 +1,11 @@
 import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { vsmApi } from '../../services/api';
+import { useVSMSync, VSMViewer } from '../../hooks/useVSMSync';
 import {
   GitFork, Plus, Trash2, ChevronLeft, ChevronRight,
   Sparkles, PencilLine, Save, X, BarChart2, Info,
-  Factory, Package, Truck, Users, ChevronDown,
+  Factory, Package, Truck, Users, Wifi, WifiOff,
 } from 'lucide-react';
 
 // ── Types ───────────────────────────────────────────────────────────────────────
@@ -492,6 +493,70 @@ function MetricsBar({ nodes }: { nodes: VSMNode[] }) {
   );
 }
 
+// ── Presence avatars ────────────────────────────────────────────────────────────
+
+const AVATAR_COLORS = [
+  'bg-violet-500', 'bg-blue-500', 'bg-teal-500',
+  'bg-orange-500', 'bg-pink-500', 'bg-emerald-500',
+];
+
+function initials(name: string) {
+  return name
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p) => p[0].toUpperCase())
+    .join('');
+}
+
+function PresenceAvatars({
+  viewers,
+  isConnected,
+}: {
+  viewers: VSMViewer[];
+  isConnected: boolean;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      {/* Connection indicator */}
+      <span title={isConnected ? 'Live sync active' : 'Connecting…'}>
+        {isConnected ? (
+          <Wifi size={13} className="text-green-500" />
+        ) : (
+          <WifiOff size={13} className="text-muted-foreground animate-pulse" />
+        )}
+      </span>
+
+      {viewers.length > 0 && (
+        <div className="flex items-center -space-x-1.5">
+          {viewers.slice(0, 5).map((v, i) => (
+            <div
+              key={v.userId}
+              title={`${v.userName} is viewing`}
+              className={`w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white border-2 border-white ring-1 ring-white/60 ${AVATAR_COLORS[i % AVATAR_COLORS.length]}`}
+            >
+              {initials(v.userName)}
+            </div>
+          ))}
+          {viewers.length > 5 && (
+            <div className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white bg-steel-500 border-2 border-white">
+              +{viewers.length - 5}
+            </div>
+          )}
+        </div>
+      )}
+
+      {viewers.length > 0 && (
+        <span className="text-[11px] text-muted-foreground">
+          {viewers.length === 1
+            ? `${viewers[0].userName} is here`
+            : `${viewers.length} others viewing`}
+        </span>
+      )}
+    </div>
+  );
+}
+
 function MetricItem({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
   return (
     <div className="flex flex-col">
@@ -506,6 +571,9 @@ function MetricItem({ label, value, highlight }: { label: string; value: string;
 export function ValueStreamMapPage() {
   const qc = useQueryClient();
   const [selectedMapId, setSelectedMapId] = useState<string | null>(null);
+
+  // Real-time sync: broadcasts changes & tracks who's viewing the same map
+  const { viewers, isConnected } = useVSMSync(selectedMapId);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [showAddNode, setShowAddNode] = useState(false);
   const [newMapName, setNewMapName] = useState('');
@@ -780,6 +848,9 @@ export function ValueStreamMapPage() {
                   <Trash2 size={14} />
                 </button>
               </div>
+
+              {/* Live presence — who else is viewing this map */}
+              <PresenceAvatars viewers={viewers} isConnected={isConnected} />
             </div>
 
             {/* Promote error */}
