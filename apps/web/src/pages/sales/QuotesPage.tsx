@@ -44,6 +44,7 @@ const validUntilStr = addDays(new Date(), 30).toISOString().split('T')[0];
 interface DraftLine {
   _key: number;
   _product?: Product | null;  // UI state for combobox
+  _priceStr?: string;         // raw string while unit price is being edited
   productId?: string;
   description: string;
   uom: string;
@@ -209,7 +210,7 @@ function CreateQuoteModal({ onClose }: { onClose: () => void }) {
 
               {/* Header row */}
               <div className="grid text-[10px] font-semibold uppercase tracking-wide text-muted-foreground px-2 pb-1"
-                style={{ gridTemplateColumns: '1fr 76px 84px 108px 76px 96px 32px' }}>
+                style={{ gridTemplateColumns: '1fr 72px 96px 108px 72px 96px 32px' }}>
                 <span>Product / Description</span>
                 <span className="text-right">Qty</span>
                 <span className="pl-1">UOM</span>
@@ -223,7 +224,7 @@ function CreateQuoteModal({ onClose }: { onClose: () => void }) {
                 {lines.map((l) => (
                   <div key={l._key}
                     className="grid items-center gap-x-2 px-2 py-2"
-                    style={{ gridTemplateColumns: '1fr 76px 84px 108px 76px 96px 32px' }}
+                    style={{ gridTemplateColumns: '1fr 72px 96px 108px 72px 96px 32px' }}
                   >
                     {/* Product / Description */}
                     <div className="space-y-1 min-w-0">
@@ -239,12 +240,12 @@ function CreateQuoteModal({ onClose }: { onClose: () => void }) {
                         onChange={(e) => updateLine(l._key, { description: e.target.value })}
                       />
                     </div>
-                    {/* Qty */}
+                    {/* Qty — integers only */}
                     <input
-                      type="number" min={0.01} step={0.01}
+                      type="number" min={1} step={1}
                       className="input h-8 text-xs text-right w-full"
                       value={l.qty}
-                      onChange={(e) => updateLine(l._key, { qty: Number(e.target.value) })}
+                      onChange={(e) => updateLine(l._key, { qty: Math.max(1, parseInt(e.target.value) || 1) })}
                     />
                     {/* UOM */}
                     <select
@@ -254,19 +255,23 @@ function CreateQuoteModal({ onClose }: { onClose: () => void }) {
                     >
                       {UOMS.map((u) => <option key={u}>{u}</option>)}
                     </select>
-                    {/* Unit Price */}
+                    {/* Unit Price — use string state while editing to avoid cursor-jump */}
                     <input
                       type="number" min={0} step={0.01}
                       className="input h-8 text-xs text-right w-full"
-                      value={(l.unitPrice / 100).toFixed(2)}
-                      onChange={(e) => updateLine(l._key, { unitPrice: Math.round(Number(e.target.value) * 100) })}
+                      value={l._priceStr ?? (l.unitPrice / 100).toFixed(2)}
+                      onChange={(e) => updateLine(l._key, { _priceStr: e.target.value })}
+                      onBlur={(e) => {
+                        const cents = Math.round(Math.max(0, parseFloat(e.target.value) || 0) * 100);
+                        updateLine(l._key, { unitPrice: cents, _priceStr: undefined });
+                      }}
                     />
-                    {/* Discount % */}
+                    {/* Discount % — whole numbers only */}
                     <input
-                      type="number" min={0} max={100} step={0.1}
+                      type="number" min={0} max={100} step={1}
                       className="input h-8 text-xs text-right w-full"
                       value={l.discountPct}
-                      onChange={(e) => updateLine(l._key, { discountPct: Number(e.target.value) })}
+                      onChange={(e) => updateLine(l._key, { discountPct: Math.min(100, Math.max(0, parseInt(e.target.value) || 0)) })}
                     />
                     {/* Line Total */}
                     <div className="text-right text-xs font-mono font-semibold tabular-nums">
