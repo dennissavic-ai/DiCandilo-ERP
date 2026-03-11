@@ -1,9 +1,79 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useForm, useFieldArray } from 'react-hook-form';
+import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { Plus, Trash2, CheckCircle, AlertCircle, Package, Upload, FileText } from 'lucide-react';
-import { inventoryApi } from '../../services/api';
+import { inventoryApi, purchasingApi } from '../../services/api';
 import { PageHeader } from '../../components/ui/PageHeader';
+
+function POSearchSelect({ value, onChange }: { value: string; onChange: (id: string) => void }) {
+  const [search, setSearch] = useState('');
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const { data: poData } = useQuery({
+    queryKey: ['purchase-orders-all'],
+    queryFn: () => purchasingApi.listOrders({ limit: 200 }).then((r) => r.data),
+  });
+
+  const items = (poData?.data ?? []).map((po: any) => ({
+    id: po.id,
+    label: po.poNumber,
+    sub: [po.supplier?.name, po.status].filter(Boolean).join(' · '),
+  }));
+
+  useEffect(() => {
+    if (value) {
+      const item = items.find((i) => i.id === value);
+      if (item) setSearch(item.label);
+    } else {
+      setSearch('');
+    }
+  }, [value, items.length]);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const filtered = search
+    ? items.filter((i) => i.label.toLowerCase().includes(search.toLowerCase()) || i.sub?.toLowerCase().includes(search.toLowerCase()))
+    : items;
+
+  return (
+    <div className="relative" ref={containerRef}>
+      <input
+        className="input font-mono w-full"
+        placeholder="Search PO number…"
+        value={search}
+        onFocus={() => { setOpen(true); setSearch(''); }}
+        onChange={(e) => {
+          setSearch(e.target.value);
+          if (!e.target.value) onChange('');
+          setOpen(true);
+        }}
+      />
+      {open && (
+        <div className="absolute z-50 w-full mt-1 bg-white border border-border rounded-md shadow-lg max-h-60 overflow-y-auto">
+          {filtered.length > 0 ? filtered.map((i) => (
+            <div
+              key={i.id}
+              className="px-3 py-2 text-sm hover:bg-steel-50 cursor-pointer border-b border-border last:border-b-0"
+              onClick={() => { onChange(i.id); setSearch(i.label); setOpen(false); }}
+            >
+              <div className="font-semibold font-mono text-primary-700">{i.label}</div>
+              {i.sub && <div className="text-xs text-muted-foreground">{i.sub}</div>}
+            </div>
+          )) : (
+            <div className="px-3 py-4 text-sm text-center text-muted-foreground">No purchase orders found</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 interface ReceiveLine {
   productId: string;
@@ -101,7 +171,7 @@ export function ReceiveStockPage() {
       <PageHeader
         title="Receive Stock"
         subtitle="Receive material into inventory from a purchase order or direct receipt"
-        breadcrumbs={[{ label: 'Inventory', href: '/inventory' }, { label: 'Receive Stock' }]}
+        breadcrumbs={[{ label: 'Operations', href: '/processing/dashboard' }, { label: 'Receive Stock' }]}
       />
 
       {success && (
@@ -137,7 +207,13 @@ export function ReceiveStockPage() {
               </div>
               <div className="form-group">
                 <label className="label">Purchase Order # (optional)</label>
-                <input className="input font-mono" placeholder="PO-000001" {...register('purchaseOrderId')} />
+                <Controller
+                  control={control}
+                  name="purchaseOrderId"
+                  render={({ field }) => (
+                    <POSearchSelect value={field.value} onChange={field.onChange} />
+                  )}
+                />
               </div>
               <div className="form-group">
                 <label className="label">Notes</label>

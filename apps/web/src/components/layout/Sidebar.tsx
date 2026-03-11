@@ -33,7 +33,6 @@ const NAV_OPS: NavItem[] = [
       { label: 'Dashboard',        to: '/inventory/dashboard',        icon: Activity },
       { label: 'Products',         to: '/inventory/products',         icon: Package },
       { label: 'Stock on Hand',    to: '/inventory',                  icon: Layers },
-      { label: 'Receive Stock',    to: '/inventory/receive',          icon: Truck },
       { label: 'Transfer Stock',   to: '/inventory/transfer',         icon: ArrowLeftRight },
       { label: 'Auto Fulfillment', to: '/inventory/auto-fulfillment', icon: Zap },
       { label: 'Adjust Stock',     to: '/inventory/adjust',           icon: Settings },
@@ -59,7 +58,8 @@ const NAV_OPS: NavItem[] = [
     children: [
       { label: 'Dashboard',         to: '/processing/dashboard',    icon: Activity },
       { label: 'Work Orders',       to: '/processing/work-orders',  icon: ClipboardList },
-      { label: 'Kanban Board',      to: '/processing/kanban',       icon: Kanban },
+      { label: 'Kanban Board',      to: '/processing/kanban',        icon: Kanban },
+      { label: 'Receive Stock',     to: '/inventory/receive',        icon: Package },
       { label: 'Time Tracking',     to: '/processing/time-tracking', icon: Clock },
       { label: 'Scheduling',        to: '/processing/schedule',     icon: BarChart3 },
       { label: 'Dispatch',            to: '/shipping',              icon: Truck },
