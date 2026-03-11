@@ -62,7 +62,7 @@ const NAV_OPS: NavItem[] = [
       { label: 'Kanban Board',      to: '/processing/kanban',       icon: Kanban },
       { label: 'Time Tracking',     to: '/processing/time-tracking', icon: Clock },
       { label: 'Scheduling',        to: '/processing/schedule',     icon: BarChart3 },
-      { label: 'Shipping / Dispatch', to: '/shipping',              icon: Truck },
+      { label: 'Dispatch',            to: '/shipping',              icon: Truck },
     ],
   },
   {
