@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, useNavigate } from 'react-router-dom';
-import { salesApi, inventoryApi } from '../../services/api';
+import { salesApi } from '../../services/api';
+import { ProductSearchCombobox } from '../../components/ui/ProductSearchCombobox';
 import {
   ArrowLeft, Plus, Trash2, Send, CheckCircle, XCircle, ArrowRight,
   Save, Clock, AlertCircle,
@@ -58,11 +59,6 @@ export function QuoteDetailPage() {
     enabled: !!id,
   });
 
-  const { data: productsData } = useQuery({
-    queryKey: ['products-dd'],
-    queryFn: () => inventoryApi.listProducts({ limit: 500 }).then((r) => r.data),
-  });
-  const products: any[] = productsData?.data ?? [];
 
   const [lines,       setLines]       = useState<QuoteLine[]>([]);
   const [notes,       setNotes]       = useState('');
@@ -116,10 +112,9 @@ export function QuoteDetailPage() {
   function updateLine(i: number, patch: Partial<QuoteLine>) {
     setLines((prev) => prev.map((l, j) => j === i ? { ...l, ...patch } : l));
   }
-  function pickProduct(productId: string) {
-    const p = products.find((pr) => pr.id === productId);
+  function pickProduct(p: import('../../services/api').Product | null) {
     if (!p) return;
-    setNewLine((l) => ({ ...l, productId: p.id, description: p.description ?? p.name ?? '', uom: p.uom ?? 'EA', unitPrice: p.listPrice ?? 0 }));
+    setNewLine((l) => ({ ...l, productId: p.id, description: p.description ?? '', uom: p.uom ?? 'EA', unitPrice: p.listPrice ?? 0 }));
   }
 
   if (isLoading) return (
@@ -358,12 +353,11 @@ export function QuoteDetailPage() {
         <div className="space-y-4">
           <div className="form-group">
             <label className="label">Product (optional)</label>
-            <select className="select" onChange={(e) => pickProduct(e.target.value)}>
-              <option value="">Select product or enter manually…</option>
-              {products.map((p: any) => (
-                <option key={p.id} value={p.id}>{p.code} — {p.description ?? p.name}</option>
-              ))}
-            </select>
+            <ProductSearchCombobox
+              value={null}
+              onChange={pickProduct}
+              placeholder="Search product library…"
+            />
           </div>
           <div className="form-group">
             <label className="label">Description *</label>

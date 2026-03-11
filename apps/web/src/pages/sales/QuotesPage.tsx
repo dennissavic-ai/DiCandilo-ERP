@@ -1,9 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { salesApi, inventoryApi, type SalesQuote } from '../../services/api';
-import { Plus, Search, ClipboardList, ArrowRight, Trash2, X, ChevronDown } from 'lucide-react';
-import { useState, useRef, useEffect } from 'react';
+import { salesApi, type SalesQuote, type Product } from '../../services/api';
+import { Plus, Search, ClipboardList, ArrowRight, Trash2, X } from 'lucide-react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { format, addDays } from 'date-fns';
+import { ProductSearchCombobox } from '../../components/ui/ProductSearchCombobox';
 
 const STATUS_BADGE: Record<string, string> = {
   DRAFT:     'badge-gray',
@@ -42,6 +43,7 @@ const validUntilStr = addDays(new Date(), 30).toISOString().split('T')[0];
 
 interface DraftLine {
   _key: number;
+  _product?: Product | null;  // UI state for combobox
   productId?: string;
   description: string;
   uom: string;
@@ -84,13 +86,7 @@ function CreateQuoteModal({ onClose }: { onClose: () => void }) {
     queryFn: () => salesApi.listCustomers({ limit: 500 }).then((r) => r.data),
   });
 
-  const { data: productsData } = useQuery({
-    queryKey: ['products-dd'],
-    queryFn: () => inventoryApi.listProducts({ limit: 500 }).then((r) => r.data),
-  });
-
   const customers: any[] = customersData?.data ?? [];
-  const products: any[]  = productsData?.data ?? [];
 
   const subtotal    = lines.reduce((s, l) => s + lineTotal(l), 0);
   const taxAmount   = Math.round(subtotal * taxPct / 100);
@@ -103,12 +99,15 @@ function CreateQuoteModal({ onClose }: { onClose: () => void }) {
   function updateLine(key: number, patch: Partial<DraftLine>) {
     setLines((ls) => ls.map((l) => l._key === key ? { ...l, ...patch } : l));
   }
-  function pickProduct(key: number, productId: string) {
-    const p = products.find((pr) => pr.id === productId);
-    if (!p) return;
+  function pickProduct(key: number, p: Product | null) {
+    if (!p) {
+      updateLine(key, { _product: null, productId: undefined });
+      return;
+    }
     updateLine(key, {
+      _product: p,
       productId: p.id,
-      description: p.description ?? p.name ?? '',
+      description: p.description ?? '',
       uom: p.uom ?? 'EA',
       unitPrice: p.listPrice ?? 0,
     });
@@ -227,16 +226,11 @@ function CreateQuoteModal({ onClose }: { onClose: () => void }) {
                         {/* Product / Description */}
                         <td>
                           <div className="space-y-1">
-                            <select
-                              className="input h-7 text-xs"
-                              value={l.productId ?? ''}
-                              onChange={(e) => pickProduct(l._key, e.target.value)}
-                            >
-                              <option value="">Select product…</option>
-                              {products.map((p: any) => (
-                                <option key={p.id} value={p.id}>{p.code} — {p.description ?? p.name}</option>
-                              ))}
-                            </select>
+                            <ProductSearchCombobox
+                              value={l._product ?? null}
+                              onChange={(p) => pickProduct(l._key, p)}
+                              placeholder="Search products…"
+                            />
                             <input
                               className="input h-7 text-xs"
                               placeholder="Description *"
