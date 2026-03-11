@@ -1,6 +1,7 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { tasksApi } from '../services/api';
-import { Plus, ClipboardList, CheckCircle2, Circle, AlertCircle } from 'lucide-react';
+import { Plus, ClipboardList, CheckCircle2, Circle, AlertCircle, X } from 'lucide-react';
+import { useState } from 'react';
 
 const PRIORITY_BADGE: Record<string, string> = {
   LOW:    'badge-gray',
@@ -17,25 +18,104 @@ const STATUS_ICON: Record<string, React.ReactNode> = {
   CANCELLED:   <CheckCircle2 size={14} className="text-steel-300" />,
 };
 
+function NewTaskModal({ onClose }: { onClose: () => void }) {
+  const queryClient = useQueryClient();
+  const [title, setTitle] = useState('');
+  const [priority, setPriority] = useState('MEDIUM');
+  const [dueDate, setDueDate] = useState('');
+
+  const { mutate, isPending } = useMutation({
+    mutationFn: (data: object) => tasksApi.createTask(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      onClose();
+    },
+  });
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!title.trim()) return;
+    mutate({
+      title: title.trim(),
+      priority,
+      ...(dueDate ? { dueDate: new Date(dueDate).toISOString() } : {}),
+    });
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="bg-background border border-border rounded-xl shadow-xl w-full max-w-md p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-sm font-semibold text-foreground">New Task</h2>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
+            <X size={16} />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="form-label">Title <span className="text-red-500">*</span></label>
+            <input
+              className="input"
+              placeholder="Task title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              autoFocus
+            />
+          </div>
+          <div>
+            <label className="form-label">Priority</label>
+            <select className="input" value={priority} onChange={(e) => setPriority(e.target.value)}>
+              <option value="LOW">Low</option>
+              <option value="MEDIUM">Medium</option>
+              <option value="HIGH">High</option>
+              <option value="URGENT">Urgent</option>
+            </select>
+          </div>
+          <div>
+            <label className="form-label">Due Date</label>
+            <input
+              type="date"
+              className="input"
+              value={dueDate}
+              onChange={(e) => setDueDate(e.target.value)}
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <button type="button" className="btn-secondary btn-sm" onClick={onClose}>Cancel</button>
+            <button type="submit" className="btn-primary btn-sm" disabled={isPending || !title.trim()}>
+              {isPending ? 'Creating…' : 'Create Task'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export function TasksPage() {
+  const [showModal, setShowModal] = useState(false);
   const { data, isLoading } = useQuery({
     queryKey: ['tasks'],
     queryFn: () => tasksApi.listTasks({ limit: 50 }).then((r) => r.data),
   });
 
   const tasks = data?.data ?? [];
-  const open      = tasks.filter((t: any) => t.status === 'OPEN').length;
+  const open       = tasks.filter((t: any) => t.status === 'OPEN').length;
   const inProgress = tasks.filter((t: any) => t.status === 'IN_PROGRESS').length;
-  const done      = tasks.filter((t: any) => t.status === 'DONE').length;
+  const done       = tasks.filter((t: any) => t.status === 'DONE').length;
 
   return (
     <div className="max-w-[1400px] mx-auto animate-fade-in">
+      {showModal && <NewTaskModal onClose={() => setShowModal(false)} />}
+
       <div className="page-header">
         <div>
           <h1 className="page-title">Tasks</h1>
           <p className="page-subtitle">{data?.meta?.total ?? '—'} total tasks across all modules</p>
         </div>
-        <button className="btn-primary btn-sm"><Plus size={13} /> New Task</button>
+        <button className="btn-primary btn-sm" onClick={() => setShowModal(true)}>
+          <Plus size={13} /> New Task
+        </button>
       </div>
 
       {/* KPIs */}

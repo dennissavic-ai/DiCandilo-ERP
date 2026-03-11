@@ -60,6 +60,7 @@ const NAV_OPS: NavItem[] = [
       { label: 'Work Orders',       to: '/processing/work-orders',  icon: ClipboardList },
       { label: 'Kanban Board',      to: '/processing/kanban',        icon: Kanban },
       { label: 'Receive Stock',     to: '/inventory/receive',        icon: Package },
+      { label: 'Scan Barcode',      to: '/scan',                     icon: QrCode },
       { label: 'Time Tracking',     to: '/processing/time-tracking', icon: Clock },
       { label: 'Scheduling',        to: '/processing/schedule',     icon: BarChart3 },
       { label: 'Dispatch',            to: '/shipping',              icon: Truck },
@@ -78,10 +79,12 @@ const NAV_OPS: NavItem[] = [
   {
     label: 'CRM', icon: Phone,
     children: [
-      { label: 'Pipeline',     to: '/crm/prospects',    icon: TrendingUp },
-      { label: 'Contacts',     to: '/crm/contacts',     icon: Users },
-      { label: 'Customers',    to: '/sales/customers',  icon: Users },
-      { label: 'Call Reports', to: '/crm/call-reports', icon: Phone },
+      { label: 'Pipeline',     to: '/crm/prospects',       icon: TrendingUp },
+      { label: 'Contacts',     to: '/crm/contacts',        icon: Users },
+      { label: 'Customers',    to: '/sales/customers',     icon: Users },
+      { label: 'Call Reports', to: '/crm/call-reports',    icon: Phone },
+      { label: 'Automation',   to: '/admin/automation',    icon: Mail },
+      { label: 'Integrations', to: '/admin/integrations',  icon: Plug },
     ],
   },
 ];
@@ -92,10 +95,7 @@ const NAV_ANALYTICS: NavItem[] = [
 ];
 
 const NAV_ADMIN: NavItem[] = [
-  { label: 'Scan Barcode',  to: '/scan',                   icon: QrCode },
-  { label: 'Automation',    to: '/admin/automation',        icon: Mail },
-  { label: 'Integrations',  to: '/admin/integrations',      icon: Plug },
-  { label: 'Users',         to: '/admin/users',             icon: Users },
+  { label: 'Users', to: '/admin/users', icon: Users },
 ];
 
 function useGroupActive(children: NavChild[]) {
