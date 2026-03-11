@@ -207,86 +207,78 @@ function CreateQuoteModal({ onClose }: { onClose: () => void }) {
                 </button>
               </div>
 
-              <div className="border border-border rounded-lg overflow-hidden">
-                <table className="table text-xs">
-                  <thead>
-                    <tr>
-                      <th className="w-[220px]">Product / Description</th>
-                      <th className="w-16 text-right">Qty</th>
-                      <th className="w-16">UOM</th>
-                      <th className="w-24 text-right">Unit Price</th>
-                      <th className="w-16 text-right">Disc %</th>
-                      <th className="w-24 text-right">Line Total</th>
-                      <th className="w-8"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {lines.map((l) => (
-                      <tr key={l._key}>
-                        {/* Product / Description */}
-                        <td>
-                          <div className="space-y-1">
-                            <ProductSearchCombobox
-                              value={l._product ?? null}
-                              onChange={(p) => pickProduct(l._key, p)}
-                              placeholder="Search products…"
-                            />
-                            <input
-                              className="input h-7 text-xs"
-                              placeholder="Description *"
-                              value={l.description}
-                              onChange={(e) => updateLine(l._key, { description: e.target.value })}
-                            />
-                          </div>
-                        </td>
-                        {/* Qty */}
-                        <td>
-                          <input
-                            type="number" min={0.01} step={0.01}
-                            className="input h-7 text-xs text-right w-full"
-                            value={l.qty}
-                            onChange={(e) => updateLine(l._key, { qty: Number(e.target.value) })}
-                          />
-                        </td>
-                        {/* UOM */}
-                        <td>
-                          <select className="input h-7 text-xs" value={l.uom} onChange={(e) => updateLine(l._key, { uom: e.target.value })}>
-                            {UOMS.map((u) => <option key={u}>{u}</option>)}
-                          </select>
-                        </td>
-                        {/* Unit Price */}
-                        <td>
-                          <input
-                            type="number" min={0} step={0.01}
-                            className="input h-7 text-xs text-right w-full"
-                            value={(l.unitPrice / 100).toFixed(2)}
-                            onChange={(e) => updateLine(l._key, { unitPrice: Math.round(Number(e.target.value) * 100) })}
-                          />
-                        </td>
-                        {/* Discount % */}
-                        <td>
-                          <input
-                            type="number" min={0} max={100} step={0.1}
-                            className="input h-7 text-xs text-right w-full"
-                            value={l.discountPct}
-                            onChange={(e) => updateLine(l._key, { discountPct: Number(e.target.value) })}
-                          />
-                        </td>
-                        {/* Line Total */}
-                        <td className="text-right font-mono font-semibold tabular-nums">
-                          ${(lineTotal(l) / 100).toFixed(2)}
-                        </td>
-                        {/* Remove */}
-                        <td>
-                          <button type="button" className="btn-ghost p-1 text-red-400 hover:text-red-600"
-                            onClick={() => removeLine(l._key)} disabled={lines.length === 1}>
-                            <Trash2 size={12} />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              {/* Header row */}
+              <div className="grid text-[10px] font-semibold uppercase tracking-wide text-muted-foreground px-2 pb-1"
+                style={{ gridTemplateColumns: '1fr 76px 84px 108px 76px 96px 32px' }}>
+                <span>Product / Description</span>
+                <span className="text-right">Qty</span>
+                <span className="pl-1">UOM</span>
+                <span className="text-right">Unit Price</span>
+                <span className="text-right">Disc %</span>
+                <span className="text-right">Line Total</span>
+                <span />
+              </div>
+
+              <div className="border border-border rounded-lg divide-y divide-border">
+                {lines.map((l) => (
+                  <div key={l._key}
+                    className="grid items-center gap-x-2 px-2 py-2"
+                    style={{ gridTemplateColumns: '1fr 76px 84px 108px 76px 96px 32px' }}
+                  >
+                    {/* Product / Description */}
+                    <div className="space-y-1 min-w-0">
+                      <ProductSearchCombobox
+                        value={l._product ?? null}
+                        onChange={(p) => pickProduct(l._key, p)}
+                        placeholder="Search products…"
+                      />
+                      <input
+                        className="input h-7 text-xs w-full"
+                        placeholder="Description *"
+                        value={l.description}
+                        onChange={(e) => updateLine(l._key, { description: e.target.value })}
+                      />
+                    </div>
+                    {/* Qty */}
+                    <input
+                      type="number" min={0.01} step={0.01}
+                      className="input h-8 text-xs text-right w-full"
+                      value={l.qty}
+                      onChange={(e) => updateLine(l._key, { qty: Number(e.target.value) })}
+                    />
+                    {/* UOM */}
+                    <select
+                      className="input h-8 text-xs w-full"
+                      value={l.uom}
+                      onChange={(e) => updateLine(l._key, { uom: e.target.value })}
+                    >
+                      {UOMS.map((u) => <option key={u}>{u}</option>)}
+                    </select>
+                    {/* Unit Price */}
+                    <input
+                      type="number" min={0} step={0.01}
+                      className="input h-8 text-xs text-right w-full"
+                      value={(l.unitPrice / 100).toFixed(2)}
+                      onChange={(e) => updateLine(l._key, { unitPrice: Math.round(Number(e.target.value) * 100) })}
+                    />
+                    {/* Discount % */}
+                    <input
+                      type="number" min={0} max={100} step={0.1}
+                      className="input h-8 text-xs text-right w-full"
+                      value={l.discountPct}
+                      onChange={(e) => updateLine(l._key, { discountPct: Number(e.target.value) })}
+                    />
+                    {/* Line Total */}
+                    <div className="text-right text-xs font-mono font-semibold tabular-nums">
+                      ${(lineTotal(l) / 100).toFixed(2)}
+                    </div>
+                    {/* Remove */}
+                    <button type="button" className="btn-ghost p-1 text-red-400 hover:text-red-600 justify-self-center"
+                      onClick={() => removeLine(l._key)} disabled={lines.length === 1}>
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                ))}
               </div>
             </div>
 
