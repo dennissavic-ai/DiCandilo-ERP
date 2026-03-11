@@ -4,7 +4,7 @@ import {
   FileText, Wrench, DollarSign, Users, ClipboardList, QrCode,
   Factory, ChevronDown, Layers, TrendingUp, Settings,
   BookOpen, Gauge, Mail, ArrowLeftRight,
-  Tag, Phone, Zap, Plug, Kanban, Clock, Activity,
+  Tag, Phone, Zap, Plug, Kanban, Clock, Activity, Sparkles,
 } from 'lucide-react';
 import { useState } from 'react';
 import clsx from 'clsx';
@@ -85,6 +85,7 @@ const NAV_OPS: NavItem[] = [
       { label: 'Work Orders',   to: '/processing/work-orders',   icon: ClipboardList },
       { label: 'Kanban Board',  to: '/processing/kanban',        icon: Kanban },
       { label: 'Receive Stock', to: '/inventory/receive',        icon: Package },
+      { label: 'Planning',      to: '/processing/planning',      icon: Sparkles },
       { label: 'Time Tracking', to: '/processing/time-tracking', icon: Clock },
       { label: 'Scheduling',    to: '/processing/schedule',      icon: BarChart3 },
       { label: 'Dispatch',      to: '/shipping',                 icon: Truck },

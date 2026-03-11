@@ -26,6 +26,8 @@ import { SupplierDetailPage } from './pages/purchasing/SupplierDetailPage';
 import { PurchaseOrderDetailPage } from './pages/purchasing/PurchaseOrderDetailPage';
 import { WorkOrdersPage } from './pages/processing/WorkOrdersPage';
 import { WorkOrderDetailPage } from './pages/processing/WorkOrderDetailPage';
+import { PlanningPage } from './pages/processing/PlanningPage';
+import { JobPlanDetailPage } from './pages/processing/JobPlanDetailPage';
 import { SchedulePage } from './pages/processing/SchedulePage';
 import { NestingPage } from './pages/processing/NestingPage';
 import { ProcessingDashboardPage } from './pages/processing/ProcessingDashboardPage';
@@ -118,6 +120,8 @@ export default function App() {
             <Route path="kanban" element={<KanbanBoardPage />} />
             <Route path="work-orders" element={<WorkOrdersPage />} />
             <Route path="work-orders/:id" element={<WorkOrderDetailPage />} />
+            <Route path="planning" element={<PlanningPage />} />
+            <Route path="planning/:workOrderId" element={<JobPlanDetailPage />} />
             <Route path="time-tracking" element={<TimeTrackingPage />} />
             <Route path="schedule" element={<SchedulePage />} />
             <Route path="nesting" element={<NestingPage />} />

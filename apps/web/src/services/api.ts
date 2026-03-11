@@ -288,6 +288,29 @@ export const integrationApi = {
   getSyncLog: (id: string) => api.get(`/integrations/sync/logs/${id}`),
 };
 
+// Planning
+export const planningApi = {
+  listWorkOrders: () => api.get('/planning/work-orders'),
+  listWorkCenters: () => api.get('/planning/work-centers'),
+  getPlan: (workOrderId: string) => api.get(`/planning/plans/${workOrderId}`),
+  updateStatus: (planId: string, status: string) => api.put(`/planning/plans/${planId}/status`, { status }),
+  updateNotes: (planId: string, notes: string) => api.put(`/planning/plans/${planId}/notes`, { notes }),
+  addRole: (planId: string, data: object) => api.post(`/planning/plans/${planId}/roles`, data),
+  deleteRole: (planId: string, roleId: string) => api.delete(`/planning/plans/${planId}/roles/${roleId}`),
+  addEquipment: (planId: string, data: object) => api.post(`/planning/plans/${planId}/equipment`, data),
+  deleteEquipment: (planId: string, equipId: string) => api.delete(`/planning/plans/${planId}/equipment/${equipId}`),
+  addTask: (planId: string, data: object) => api.post(`/planning/plans/${planId}/tasks`, data),
+  toggleTask: (planId: string, taskId: string, isComplete: boolean) =>
+    api.patch(`/planning/plans/${planId}/tasks/${taskId}`, { isComplete }),
+  deleteTask: (planId: string, taskId: string) => api.delete(`/planning/plans/${planId}/tasks/${taskId}`),
+  getSchedule: (params?: object) => api.get('/planning/schedule', { params }),
+  addScheduleBlock: (planId: string, data: object) => api.post(`/planning/plans/${planId}/schedule-blocks`, data),
+  deleteScheduleBlock: (planId: string, blockId: string) =>
+    api.delete(`/planning/plans/${planId}/schedule-blocks/${blockId}`),
+  autoSchedule: (workOrderIds: string[]) =>
+    api.post('/ai/schedule', { workOrderIds }),
+};
+
 // Automation
 export const automationApi = {
   listRules: () => api.get('/automation/rules'),

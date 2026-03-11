@@ -416,6 +416,9 @@ export const aiRoutes: FastifyPluginAsync = async (fastify) => {
 
     reply.raw.end();
   });
+
+  // Register the AI schedule endpoint inside the same plugin
+  await registerScheduleRoute(fastify);
 };
 
 function toolCallMessage(name: string, inp: Record<string, string>) {
@@ -429,6 +432,218 @@ function toolCallMessage(name: string, inp: Record<string, string>) {
     list_overdue_invoices:()  => `Fetching overdue invoices…`,
     get_business_snapshot:()  => `Loading business snapshot…`,
     create_quote:        (i)  => `Creating quote (${(i.lines as unknown as [])?.length ?? '?'} lines)…`,
+    // Scheduling tools
+    get_schedulable_jobs:     () => `Loading jobs for scheduling…`,
+    get_work_center_availability: (i) => `Checking availability for work center…`,
+    create_schedule_blocks:   () => `Creating schedule blocks…`,
   };
   return map[name]?.(inp) ?? `Running ${name}…`;
+}
+
+// ── AI Schedule tools ──────────────────────────────────────────────────────────
+
+const SCHEDULE_TOOLS: Anthropic.Tool[] = [
+  {
+    name: 'get_schedulable_jobs',
+    description: 'Fetch job plans with equipment requirements for the specified work orders. Returns plan details including equipment/work center requirements and estimated durations.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        workOrderIds: { type: 'array', items: { type: 'string' }, description: 'UUIDs of work orders to schedule' },
+      },
+      required: ['workOrderIds'],
+    },
+  },
+  {
+    name: 'get_work_center_availability',
+    description: 'Check existing schedule blocks for a work center within a date window to identify free slots.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        workCenterId: { type: 'string', description: 'UUID of the work center' },
+        fromDate:     { type: 'string', description: 'ISO datetime start of window (e.g. today)' },
+        toDate:       { type: 'string', description: 'ISO datetime end of window (e.g. 14 days from today)' },
+      },
+      required: ['workCenterId', 'fromDate', 'toDate'],
+    },
+  },
+  {
+    name: 'create_schedule_blocks',
+    description: 'Create schedule blocks for a job plan. Each block assigns a time slot on a specific work center.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        planId: { type: 'string', description: 'UUID of the JobPlan' },
+        blocks: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              workCenterId: { type: 'string' },
+              startAt:      { type: 'string', description: 'ISO datetime start' },
+              endAt:        { type: 'string', description: 'ISO datetime end' },
+              notes:        { type: 'string' },
+            },
+            required: ['workCenterId', 'startAt', 'endAt'],
+          },
+        },
+      },
+      required: ['planId', 'blocks'],
+    },
+  },
+];
+
+async function execScheduleTool(name: string, input: any, companyId: string) {
+  if (name === 'get_schedulable_jobs') {
+    const plans = await (prisma as any).jobPlan.findMany({
+      where: { companyId, workOrderId: { in: input.workOrderIds } },
+      include: {
+        workOrder: { select: { workOrderNumber: true, priority: true, scheduledDate: true, status: true } },
+        equipment: { include: { workCenter: { select: { id: true, name: true, code: true, type: true } } }, orderBy: { sequenceOrder: 'asc' } },
+        tasks: { where: { isComplete: false }, select: { title: true } },
+      },
+    });
+    return plans;
+  }
+
+  if (name === 'get_work_center_availability') {
+    const existing = await (prisma as any).scheduleBlock.findMany({
+      where: {
+        companyId,
+        workCenterId: input.workCenterId,
+        startAt: { gte: new Date(input.fromDate) },
+        endAt:   { lte: new Date(input.toDate) },
+      },
+      orderBy: { startAt: 'asc' },
+      select: { startAt: true, endAt: true, jobPlanId: true },
+    });
+    return {
+      workCenterId: input.workCenterId,
+      window: { from: input.fromDate, to: input.toDate },
+      bookedSlots: existing,
+    };
+  }
+
+  if (name === 'create_schedule_blocks') {
+    const plan = await (prisma as any).jobPlan.findFirst({ where: { id: input.planId, companyId } });
+    if (!plan) throw new Error('Plan not found');
+
+    // Delete existing AI-generated blocks for this plan first
+    await (prisma as any).scheduleBlock.deleteMany({ where: { jobPlanId: input.planId, aiGenerated: true } });
+
+    const created = await Promise.all(
+      input.blocks.map((b: any) =>
+        (prisma as any).scheduleBlock.create({
+          data: {
+            companyId,
+            jobPlanId: input.planId,
+            workCenterId: b.workCenterId,
+            startAt: new Date(b.startAt),
+            endAt:   new Date(b.endAt),
+            notes:   b.notes ?? null,
+            aiGenerated: true,
+            updatedAt: new Date(),
+          },
+        })
+      )
+    );
+
+    // Update plan status to SCHEDULED
+    await (prisma as any).jobPlan.update({
+      where: { id: input.planId },
+      data: { status: 'SCHEDULED', updatedAt: new Date() },
+    });
+
+    return { created: created.length, planStatus: 'SCHEDULED' };
+  }
+
+  throw new Error(`Unknown scheduling tool: ${name}`);
+}
+
+// ── Schedule endpoint (added to existing aiRoutes plugin above) ────────────────
+// This is exported separately and registered inside aiRoutes below via closure
+export async function registerScheduleRoute(fastify: any) {
+  fastify.post('/schedule', {
+    schema: { tags: ['AI'] },
+    preHandler: [authenticate],
+  }, async (request: any, reply: any) => {
+    const { companyId } = request.user as { companyId: string };
+    const body = z.object({
+      workOrderIds: z.array(z.string().uuid()).min(1),
+    }).parse(request.body);
+
+    if (!process.env.ANTHROPIC_API_KEY) {
+      return reply.status(503).send({ error: 'AI not configured' });
+    }
+
+    reply.raw.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
+
+    const anthro = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+    const today = new Date();
+    const twoWeeks = new Date(today.getTime() + 14 * 86400000);
+
+    const scheduleSystemPrompt = `You are an operations scheduling AI for DiCandilo Metal Service Center.
+Your job is to create an optimal schedule for the given work orders by:
+1. Fetching the job plans to understand equipment requirements and durations
+2. Checking work center availability to find free time slots
+3. Creating schedule blocks that avoid conflicts and respect sequence order
+4. Working hours are 07:00–17:00 Monday–Friday (AEST, UTC+10)
+5. Schedule starting from today (${today.toISOString().slice(0, 10)})
+6. Higher priority work orders (lower number) should be scheduled first
+7. Group operations on the same work center where possible
+Return a brief summary of what was scheduled.`;
+
+    const messages: Anthropic.MessageParam[] = [
+      { role: 'user', content: `Schedule these work orders: ${body.workOrderIds.join(', ')}. Today is ${today.toISOString()}. Window: ${today.toISOString()} to ${twoWeeks.toISOString()}.` },
+    ];
+
+    try {
+      let iterations = 0;
+      while (iterations++ < 8) {
+        const response = await anthro.messages.create({
+          model: 'claude-opus-4-6',
+          max_tokens: 4096,
+          system: scheduleSystemPrompt,
+          tools: SCHEDULE_TOOLS,
+          messages,
+        });
+
+        const assistantContent: Anthropic.ContentBlock[] = [];
+        const toolResults: Anthropic.ToolResultBlockParam[] = [];
+
+        for (const block of response.content) {
+          assistantContent.push(block);
+          if (block.type === 'tool_use') {
+            const inp = block.input as any;
+            sse(reply, { type: 'tool', tool: block.name, message: toolCallMessage(block.name, inp) });
+            let result: any;
+            try {
+              result = await execScheduleTool(block.name, inp, companyId);
+              sse(reply, { type: 'tool_result', tool: block.name, message: `Done` });
+            } catch (toolErr) {
+              result = { error: toolErr instanceof Error ? toolErr.message : 'Tool error' };
+            }
+            toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: JSON.stringify(result) });
+          }
+        }
+
+        messages.push({ role: 'assistant', content: assistantContent });
+
+        if (response.stop_reason === 'end_turn') {
+          const textBlock = response.content.find((b) => b.type === 'text') as Anthropic.TextBlock | undefined;
+          sse(reply, { type: 'done', message: textBlock?.text ?? 'Scheduling complete.' });
+          break;
+        }
+
+        if (toolResults.length > 0) {
+          messages.push({ role: 'user', content: toolResults });
+        }
+      }
+    } catch (err) {
+      sse(reply, { type: 'error', message: err instanceof Error ? err.message : 'Scheduling failed' });
+    }
+
+    reply.raw.end();
+  });
 }
