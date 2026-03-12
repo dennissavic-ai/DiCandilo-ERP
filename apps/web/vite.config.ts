@@ -14,7 +14,7 @@ export default defineConfig({
     port: 4000,
     proxy: {
       '/api': {
-        target: 'http://localhost:3001',
+        target: 'http://localhost:3002',
         changeOrigin: true,
         ws: true,   // proxy WebSocket upgrades (e.g. /api/v1/ws)
       },
