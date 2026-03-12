@@ -9,7 +9,10 @@ COPY package*.json ./
 COPY packages/shared/package.json ./packages/shared/
 COPY packages/ui/package.json ./packages/ui/
 COPY apps/web/package.json ./apps/web/
+COPY apps/desktop/package.json ./apps/desktop/
 
+# Skip electron binary download — desktop app is not built here
+ENV ELECTRON_SKIP_BINARY_DOWNLOAD=1
 RUN npm ci && npm cache clean --force
 
 # Copy source (shared packages + web app)
