@@ -693,11 +693,29 @@ export const inventoryRoutes: FastifyPluginAsync = async (fastify) => {
       const data = await request.file();
       if (!data) return reply.status(400).send({ message: 'No file uploaded' });
 
+      // Validate file type — whitelist safe document MIME types
+      const ALLOWED_MIME_TYPES = [
+        'application/pdf',
+        'image/png', 'image/jpeg', 'image/gif', 'image/webp',
+        'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'text/csv', 'text/plain',
+      ];
+      if (!ALLOWED_MIME_TYPES.includes(data.mimetype)) {
+        return reply.status(400).send({ message: `File type '${data.mimetype}' is not allowed. Accepted: PDF, images, Office documents, CSV, TXT.` });
+      }
+
+      // Validate file size (max 25 MB)
+      const MAX_FILE_SIZE = 25 * 1024 * 1024;
+
       const body = data.fields as any;
       const sourceType = (body.sourceType?.value ?? body.sourceType ?? 'PO_RECEIPT') as string;
       const sourceId   = (body.sourceId?.value   ?? body.sourceId   ?? '') as string;
 
       const buffer = await data.toBuffer();
+      if (buffer.length > MAX_FILE_SIZE) {
+        return reply.status(400).send({ message: `File exceeds maximum size of 25 MB.` });
+      }
       const ext = path.extname(data.filename) || '';
       const fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`;
       const uploadDir = '/uploads/documents';

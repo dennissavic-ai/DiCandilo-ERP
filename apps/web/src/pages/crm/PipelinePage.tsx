@@ -3,7 +3,7 @@ import { crmApi, automationApi, PipelineStage, EmailAutomationRule } from '../..
 import {
   Plus, Mail, Phone, Calendar, Edit2, DollarSign,
   TrendingUp, Percent, Kanban, Settings2, Trash2,
-  ChevronUp, ChevronDown, CheckCircle, AlertCircle,
+  ChevronUp, ChevronDown, CheckCircle, AlertCircle, UserPlus,
 } from 'lucide-react';
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -326,10 +326,16 @@ function ProspectCard({
   p,
   onEdit,
   onDragStart,
+  isWon,
+  onConvert,
+  isConverting,
 }: {
   p: any;
   onEdit: () => void;
   onDragStart: (id: string) => void;
+  isWon?: boolean;
+  onConvert?: (id: string) => void;
+  isConverting?: boolean;
 }) {
   const navigate = useNavigate();
   const overdue  = p.nextFollowUp && new Date(p.nextFollowUp) < new Date();
@@ -387,6 +393,16 @@ function ProspectCard({
           </span>
         )}
       </div>
+
+      {isWon && onConvert && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onConvert(p.id); }}
+          disabled={isConverting}
+          className="mt-2 w-full flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 transition-colors disabled:opacity-50"
+        >
+          <UserPlus size={11} /> {isConverting ? 'Converting…' : 'Convert to Customer'}
+        </button>
+      )}
     </div>
   );
 }
@@ -396,6 +412,7 @@ function ProspectCard({
 function KanbanColumn({
   stage, prospects, isDragOver,
   onDragOver, onDragLeave, onDrop, onEdit, onDragStart,
+  onConvert, convertingId,
 }: {
   stage: PipelineStage;
   prospects: any[];
@@ -405,6 +422,8 @@ function KanbanColumn({
   onDrop: (e: React.DragEvent) => void;
   onEdit: (p: any) => void;
   onDragStart: (id: string) => void;
+  onConvert?: (id: string) => void;
+  convertingId?: string | null;
 }) {
   const meta    = colorMeta(stage.color);
   const total   = prospects.reduce((s, p) => s + Number(p.estimatedValue ?? 0), 0);
@@ -439,7 +458,15 @@ function KanbanColumn({
         }`}
       >
         {prospects.map((p) => (
-          <ProspectCard key={p.id} p={p} onEdit={() => onEdit(p)} onDragStart={onDragStart} />
+          <ProspectCard
+            key={p.id}
+            p={p}
+            onEdit={() => onEdit(p)}
+            onDragStart={onDragStart}
+            isWon={stage.isWon}
+            onConvert={stage.isWon ? onConvert : undefined}
+            isConverting={convertingId === p.id}
+          />
         ))}
       </div>
     </div>
@@ -596,10 +623,22 @@ export function PipelinePage() {
     queryFn:  () => automationApi.listRules().then((r) => r.data as EmailAutomationRule[]),
   });
 
+  const [convertingId, setConvertingId] = useState<string | null>(null);
+
   const stageMutation = useMutation({
     mutationFn: ({ id, stage }: { id: string; stage: string }) =>
       crmApi.changeStage(id, stage),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['prospects'] }),
+  });
+
+  const convertMutation = useMutation({
+    mutationFn: (id: string) => crmApi.convertProspect(id),
+    onMutate: (id) => setConvertingId(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['prospects'] });
+      setConvertingId(null);
+    },
+    onError: () => setConvertingId(null),
   });
 
   const stages:    PipelineStage[]   = stagesData    ?? [];
@@ -708,6 +747,8 @@ export function PipelinePage() {
               onDrop={() => handleDrop(stage.name)}
               onEdit={openEdit}
               onDragStart={(id) => { draggingId.current = id; }}
+              onConvert={(id) => convertMutation.mutate(id)}
+              convertingId={convertingId}
             />
           ))}
         </div>

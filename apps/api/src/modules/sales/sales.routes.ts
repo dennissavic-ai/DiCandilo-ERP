@@ -11,6 +11,44 @@ import { InventoryService } from '../inventory/inventory.service';
 
 const inventoryService = new InventoryService();
 
+// ── Sequential number generation with collision retry ──────────────────────
+async function generateSequentialNumber(
+  companyId: string,
+  prefix: string,
+  model: 'salesOrder' | 'salesQuote' | 'invoice' | 'purchaseOrder' | 'workOrder' | 'shipmentManifest' | 'pickList',
+): Promise<string> {
+  const numberField =
+    model === 'salesOrder' ? 'orderNumber' :
+    model === 'salesQuote' ? 'quoteNumber' :
+    model === 'invoice' ? 'invoiceNumber' :
+    model === 'purchaseOrder' ? 'poNumber' :
+    model === 'workOrder' ? 'workOrderNumber' :
+    model === 'shipmentManifest' ? 'manifestNumber' :
+    'pickNumber';
+
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const count = await (prisma as any)[model].count({ where: { companyId } });
+    const num = `${prefix}-${String(count + 1 + attempt).padStart(6, '0')}`;
+    const existing = await (prisma as any)[model].findFirst({
+      where: { companyId, [numberField]: num },
+    });
+    if (!existing) return num;
+  }
+  // Fallback: use timestamp
+  return `${prefix}-${Date.now()}`;
+}
+
+// ── Valid sales order status transitions ────────────────────────────────────
+const VALID_SO_TRANSITIONS: Record<string, string[]> = {
+  DRAFT: ['CONFIRMED', 'CANCELLED'],
+  CONFIRMED: ['IN_PRODUCTION', 'READY_TO_SHIP', 'CANCELLED'],
+  IN_PRODUCTION: ['READY_TO_SHIP', 'ON_HOLD', 'CANCELLED'],
+  ON_HOLD: ['IN_PRODUCTION', 'CANCELLED'],
+  READY_TO_SHIP: ['SHIPPED', 'CANCELLED'],
+  SHIPPED: ['INVOICED'],
+  INVOICED: ['CLOSED'],
+};
+
 /**
  * Create a DRAFT invoice linked to the sales order so the expected payment
  * appears in AR cashflow projections immediately.  No GL entries are posted
@@ -22,8 +60,7 @@ async function createDraftInvoiceForOrder(so: any, companyId: string, userId: st
   const dueDate = new Date(now);
   dueDate.setDate(dueDate.getDate() + (so.customer?.creditTerms ?? 30));
 
-  const count = await prisma.invoice.count({ where: { companyId } });
-  const invoiceNumber = `INV-${String(count + 1).padStart(6, '0')}`;
+  const invoiceNumber = await generateSequentialNumber(companyId, 'INV', 'invoice');
 
   await prisma.invoice.create({
     data: {
@@ -192,7 +229,25 @@ export const salesRoutes: FastifyPluginAsync = async (fastify) => {
       const { id } = request.params as { id: string };
       const c = await prisma.customer.findFirst({ where: { id, companyId, deletedAt: null } });
       if (!c) throw new NotFoundError('Customer', id);
-      const updated = await prisma.customer.update({ where: { id }, data: { ...(request.body as object), updatedBy: sub } });
+      const updateBody = z.object({
+        name: z.string().min(1).optional(),
+        legalName: z.string().optional(),
+        taxId: z.string().optional(),
+        customerGroupId: z.string().uuid().optional().nullable(),
+        currencyCode: z.string().optional(),
+        creditLimit: z.number().int().min(0).optional(),
+        creditTerms: z.number().int().min(0).optional(),
+        creditHold: z.boolean().optional(),
+        billingAddress: z.record(z.unknown()).optional(),
+        shippingAddress: z.record(z.unknown()).optional(),
+        contacts: z.array(z.record(z.unknown())).optional(),
+        paymentMethod: z.string().optional(),
+        taxExempt: z.boolean().optional(),
+        taxExemptNumber: z.string().optional(),
+        notes: z.string().optional(),
+        isActive: z.boolean().optional(),
+      }).parse(request.body);
+      const updated = await prisma.customer.update({ where: { id }, data: { ...updateBody, updatedBy: sub } });
       return updated;
     } catch (err) { return handleError(reply, err); }
   });
@@ -265,8 +320,7 @@ export const salesRoutes: FastifyPluginAsync = async (fastify) => {
       if (!customer) throw new NotFoundError('Customer', body.customerId);
       if (customer.creditHold) throw new ValidationError('Customer is on credit hold');
 
-      const count = await prisma.salesQuote.count({ where: { companyId } });
-      const quoteNumber = `QT-${String(count + 1).padStart(6, '0')}`;
+      const quoteNumber = await generateSequentialNumber(companyId, 'QT', 'salesQuote');
 
       const subtotal = body.lines.reduce((sum, l) => {
         const lineSubtotal = Math.round(l.qty * l.unitPrice);
@@ -321,11 +375,13 @@ export const salesRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.patch('/quotes/:id/status', { preHandler: [authenticate, requirePermission('sales', 'edit')] }, async (request, reply) => {
     try {
-      const { sub } = request.user as { companyId: string; sub: string };
+      const { companyId, sub } = request.user as { companyId: string; sub: string };
       const { id } = request.params as { id: string };
       const { status } = z.object({
         status: z.enum(['DRAFT', 'SENT', 'ACCEPTED', 'REJECTED', 'DECLINED', 'CANCELLED']),
       }).parse(request.body);
+      const existing = await prisma.salesQuote.findFirst({ where: { id, companyId, deletedAt: null } });
+      if (!existing) throw new NotFoundError('SalesQuote', id);
       const q = await prisma.salesQuote.update({ where: { id }, data: { status: status as any, updatedBy: sub } });
       return q;
     } catch (err) { return handleError(reply, err); }
@@ -346,8 +402,7 @@ export const salesRoutes: FastifyPluginAsync = async (fastify) => {
         throw new ValidationError(`Cannot convert quote in status '${quote.status}'`);
       }
 
-      const count = await prisma.salesOrder.count({ where: { companyId } });
-      const orderNumber = `SO-${String(count + 1).padStart(6, '0')}`;
+      const orderNumber = await generateSequentialNumber(companyId, 'SO', 'salesOrder');
 
       const so = await prisma.$transaction(async (tx) => {
         const salesOrder = await tx.salesOrder.create({
@@ -486,8 +541,7 @@ export const salesRoutes: FastifyPluginAsync = async (fastify) => {
         }
       }
 
-      const count = await prisma.salesOrder.count({ where: { companyId } });
-      const orderNumber = `SO-${String(count + 1).padStart(6, '0')}`;
+      const orderNumber = await generateSequentialNumber(companyId, 'SO', 'salesOrder');
 
       const subtotal = body.lines.reduce((sum, l) => {
         const ls = Math.round(l.qty * l.unitPrice);
@@ -555,24 +609,28 @@ export const salesRoutes: FastifyPluginAsync = async (fastify) => {
       if (!so) throw new NotFoundError('SalesOrder', id);
       if (so.status !== 'DRAFT') throw new ValidationError(`Order is already ${so.status}`);
 
-      await prisma.salesOrder.update({ where: { id }, data: { status: 'CONFIRMED', updatedBy: sub } });
+      // Wrap status update + stock allocation in a transaction
+      const allocationResults = await prisma.$transaction(async (tx) => {
+        await tx.salesOrder.update({ where: { id }, data: { status: 'CONFIRMED', updatedBy: sub } });
 
-      // Automatically allocate stock for lines that reference a specific inventory item.
-      // Lines without an inventoryItemId require manual warehouse allocation.
-      const allocationResults: Array<{ lineId: string; allocated: boolean; reason?: string }> = [];
-      for (const line of so.lines) {
-        if ((line as any).inventoryItemId) {
-          try {
-            await inventoryService.allocateStock((line as any).inventoryItemId, Number(line.qtyOrdered), line.id, sub);
-            await prisma.salesOrderLine.update({ where: { id: line.id }, data: { qtyAllocated: Number(line.qtyOrdered) } });
-            allocationResults.push({ lineId: line.id, allocated: true });
-          } catch (allocErr: any) {
-            allocationResults.push({ lineId: line.id, allocated: false, reason: allocErr?.message });
+        // Automatically allocate stock for lines that reference a specific inventory item.
+        // Lines without an inventoryItemId require manual warehouse allocation.
+        const results: Array<{ lineId: string; allocated: boolean; reason?: string }> = [];
+        for (const line of so.lines) {
+          if ((line as any).inventoryItemId) {
+            try {
+              await inventoryService.allocateStock((line as any).inventoryItemId, Number(line.qtyOrdered), line.id, sub);
+              await tx.salesOrderLine.update({ where: { id: line.id }, data: { qtyAllocated: Number(line.qtyOrdered) } });
+              results.push({ lineId: line.id, allocated: true });
+            } catch (allocErr: any) {
+              results.push({ lineId: line.id, allocated: false, reason: allocErr?.message });
+            }
+          } else {
+            results.push({ lineId: line.id, allocated: false, reason: 'No inventory item linked — manual allocation required' });
           }
-        } else {
-          allocationResults.push({ lineId: line.id, allocated: false, reason: 'No inventory item linked — manual allocation required' });
         }
-      }
+        return results;
+      });
 
       sendOrderStatusEmail(id, companyId).catch(() => {});
       return { ...so, status: 'CONFIRMED', allocationResults };
@@ -581,11 +639,16 @@ export const salesRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.patch('/orders/:id/cancel', { preHandler: [authenticate, requirePermission('sales', 'edit')] }, async (request, reply) => {
     try {
-      const { companyId } = request.user as { companyId: string };
+      const { companyId, sub } = request.user as { companyId: string; sub: string };
       const { id } = request.params as { id: string };
-      const so = await prisma.salesOrder.update({ where: { id }, data: { status: 'CANCELLED', updatedBy: (request.user as { sub: string }).sub } });
+      const so = await prisma.salesOrder.findFirst({ where: { id, companyId, deletedAt: null } });
+      if (!so) throw new NotFoundError('SalesOrder', id);
+      if (['SHIPPED', 'INVOICED', 'CLOSED', 'CANCELLED'].includes(so.status)) {
+        throw new ValidationError(`Cannot cancel order in status '${so.status}'`);
+      }
+      const updated = await prisma.salesOrder.update({ where: { id }, data: { status: 'CANCELLED', updatedBy: sub } });
       sendOrderStatusEmail(id, companyId).catch(() => {});
-      return so;
+      return updated;
     } catch (err) { return handleError(reply, err); }
   });
 
@@ -596,11 +659,17 @@ export const salesRoutes: FastifyPluginAsync = async (fastify) => {
       const { companyId, sub } = request.user as { companyId: string; sub: string };
       const { id } = request.params as { id: string };
       const { status } = z.object({
-        status: z.enum(['DRAFT', 'CONFIRMED', 'IN_PRODUCTION', 'READY_TO_SHIP', 'SHIPPED', 'INVOICED', 'CANCELLED']),
+        status: z.enum(['DRAFT', 'CONFIRMED', 'IN_PRODUCTION', 'READY_TO_SHIP', 'SHIPPED', 'INVOICED', 'CANCELLED', 'CLOSED', 'ON_HOLD']),
       }).parse(request.body);
-      const so = await prisma.salesOrder.update({ where: { id }, data: { status, updatedBy: sub } });
+      const so = await prisma.salesOrder.findFirst({ where: { id, companyId, deletedAt: null } });
+      if (!so) throw new NotFoundError('SalesOrder', id);
+      const allowed = VALID_SO_TRANSITIONS[so.status] ?? [];
+      if (!allowed.includes(status)) {
+        throw new ValidationError(`Cannot transition from ${so.status} to ${status}. Allowed: ${allowed.join(', ')}`);
+      }
+      const updated = await prisma.salesOrder.update({ where: { id }, data: { status, updatedBy: sub } });
       sendOrderStatusEmail(id, companyId).catch(() => {});
-      return so;
+      return updated;
     } catch (err) { return handleError(reply, err); }
   });
 

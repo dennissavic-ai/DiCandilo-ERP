@@ -1,7 +1,8 @@
 import { FastifyPluginAsync } from 'fastify';
 import { prisma } from '../../config/database';
 import { authenticate } from '../../middleware/auth.middleware';
-import { handleError, NotFoundError } from '../../utils/errors';
+import { writeAuditLog } from '../../middleware/audit.middleware';
+import { handleError, NotFoundError, ConflictError } from '../../utils/errors';
 import { parsePagination, paginatedResponse } from '../../utils/pagination';
 import { sendEmail, prospectStageTemplate } from '../../utils/email';
 
@@ -210,6 +211,7 @@ export const crmRoutes: FastifyPluginAsync = async (fastify) => {
           updatedBy:      sub,
         },
       });
+      await writeAuditLog(request, 'CREATE', 'Prospect', p.id, null, { companyName: body.companyName });
       return reply.status(201).send(p);
     } catch (err) { return handleError(reply, err); }
   });
@@ -243,6 +245,7 @@ export const crmRoutes: FastifyPluginAsync = async (fastify) => {
           updatedBy:      sub,
         },
       });
+      await writeAuditLog(request, 'UPDATE', 'Prospect', id, null, { companyName: body.companyName });
       return reply.send(updated);
     } catch (err) { return handleError(reply, err); }
   });
@@ -265,6 +268,7 @@ export const crmRoutes: FastifyPluginAsync = async (fastify) => {
       // Fire email asynchronously — do not block the response
       void maybeSendStageEmail(companyId, existing, stage);
 
+      await writeAuditLog(request, 'UPDATE', 'Prospect', id, null, { stage, previousStage: existing.stage });
       return reply.send(updated);
     } catch (err) { return handleError(reply, err); }
   });
@@ -277,7 +281,54 @@ export const crmRoutes: FastifyPluginAsync = async (fastify) => {
       const p = await (prisma as any).prospect.findFirst({ where: { id, companyId, deletedAt: null } });
       if (!p) throw new NotFoundError('Prospect', id);
       await (prisma as any).prospect.update({ where: { id }, data: { deletedAt: new Date() } });
+      await writeAuditLog(request, 'DELETE', 'Prospect', id, null, { companyName: p.companyName });
       return reply.send({ success: true });
+    } catch (err) { return handleError(reply, err); }
+  });
+
+  /** POST /crm/prospects/:id/convert — convert a Prospect into a Customer */
+  fastify.post('/prospects/:id/convert', { preHandler: [authenticate] }, async (request, reply) => {
+    const { companyId, sub } = request.user as any;
+    const { id } = request.params as { id: string };
+    try {
+      const prospect = await (prisma as any).prospect.findFirst({ where: { id, companyId, deletedAt: null } });
+      if (!prospect) throw new NotFoundError('Prospect', id);
+
+      // Check if customer with same name already exists
+      const existingCustomer = await prisma.customer.findFirst({
+        where: { companyId, name: prospect.companyName, deletedAt: null },
+      });
+      if (existingCustomer) {
+        throw new ConflictError(`Customer '${prospect.companyName}' already exists`);
+      }
+
+      // Generate customer code from company name
+      const code = prospect.companyName.substring(0, 3).toUpperCase().replace(/[^A-Z]/g, 'X') + '-' + Date.now().toString(36).slice(-4).toUpperCase();
+
+      const customer = await prisma.customer.create({
+        data: {
+          companyId,
+          code,
+          name: prospect.companyName,
+          contacts: prospect.contactName || prospect.email || prospect.phone ? [{
+            name: prospect.contactName ?? '',
+            email: prospect.email ?? '',
+            phone: prospect.phone ?? '',
+            isPrimary: true,
+          }] : [],
+          notes: prospect.notes,
+          createdBy: sub,
+          updatedBy: sub,
+        },
+      });
+
+      // Mark prospect as WON
+      await (prisma as any).prospect.update({
+        where: { id },
+        data: { stage: 'WON', updatedBy: sub },
+      });
+
+      return reply.status(201).send({ customer, message: 'Prospect converted to customer' });
     } catch (err) { return handleError(reply, err); }
   });
 

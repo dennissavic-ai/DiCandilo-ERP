@@ -4,6 +4,7 @@ import argon2 from 'argon2';
 import { prisma } from '../../config/database';
 import { authenticate, requirePermission, requireAdmin } from '../../middleware/auth.middleware';
 import { handleError, NotFoundError, ConflictError } from '../../utils/errors';
+import { writeAuditLog } from '../../middleware/audit.middleware';
 import { parsePagination, paginatedResponse } from '../../utils/pagination';
 import { passwordSchema } from '../../utils/password';
 import { AuthService } from '../auth/auth.service';
@@ -62,6 +63,7 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
         },
         select: { id: true, email: true, firstName: true, lastName: true, requirePasswordChange: true, role: { select: { id: true, name: true } } },
       });
+      await writeAuditLog(request, 'CREATE', 'User', user.id, null, { email: user.email });
       return reply.status(201).send(user);
     } catch (err) { return handleError(reply, err); }
   });
@@ -81,6 +83,7 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
         where: { id }, data: { ...body, updatedBy: sub },
         select: { id: true, email: true, firstName: true, lastName: true, isActive: true },
       });
+      await writeAuditLog(request, 'UPDATE', 'User', id, null, body);
       return updated;
     } catch (err) { return handleError(reply, err); }
   });
@@ -93,6 +96,7 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
       const user = await prisma.user.findFirst({ where: { id, companyId, deletedAt: null } });
       if (!user) throw new NotFoundError('User', id);
       await prisma.user.update({ where: { id }, data: { deletedAt: new Date(), isActive: false, updatedBy: sub } });
+      await writeAuditLog(request, 'DELETE', 'User', id, null, { email: user.email });
       return reply.status(204).send();
     } catch (err) { return handleError(reply, err); }
   });

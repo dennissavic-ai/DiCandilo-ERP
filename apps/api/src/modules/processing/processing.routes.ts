@@ -130,6 +130,29 @@ export const processingRoutes: FastifyPluginAsync = async (fastify) => {
       if (status === 'IN_PROGRESS') updates.startDate = new Date();
       if (status === 'COMPLETED') updates.completedDate = new Date();
       const wo = await prisma.workOrder.update({ where: { id }, data: updates });
+
+      // Auto-sync status to parent sales order
+      if (wo.salesOrderId) {
+        if (status === 'IN_PROGRESS') {
+          await prisma.salesOrder.update({
+            where: { id: wo.salesOrderId },
+            data: { status: 'IN_PRODUCTION', updatedBy: sub },
+          });
+        } else if (status === 'COMPLETED') {
+          // Check if ALL work orders for this SO are complete
+          const siblingWOs = await prisma.workOrder.findMany({
+            where: { salesOrderId: wo.salesOrderId, deletedAt: null, id: { not: id } },
+          });
+          const allComplete = siblingWOs.every(w => w.status === 'COMPLETED');
+          if (allComplete) {
+            await prisma.salesOrder.update({
+              where: { id: wo.salesOrderId },
+              data: { status: 'READY_TO_SHIP', updatedBy: sub },
+            });
+          }
+        }
+      }
+
       return wo;
     } catch (err) { return handleError(reply, err); }
   });
@@ -387,6 +410,13 @@ export const processingRoutes: FastifyPluginAsync = async (fastify) => {
             where: { id: body.workOrderId },
             data: { status: 'IN_PROGRESS', startDate: new Date(), updatedBy: sub },
           });
+          // Auto-sync: mark parent SO as IN_PRODUCTION
+          if (wo.salesOrderId) {
+            await prisma.salesOrder.update({
+              where: { id: wo.salesOrderId },
+              data: { status: 'IN_PRODUCTION', updatedBy: sub },
+            });
+          }
         }
       }
 
@@ -458,6 +488,13 @@ export const processingRoutes: FastifyPluginAsync = async (fastify) => {
           where: { id: wo.id },
           data: { status: 'IN_PROGRESS', startDate: new Date(), updatedBy: sub },
         });
+        // Auto-sync: mark parent SO as IN_PRODUCTION
+        if (wo.salesOrderId) {
+          await prisma.salesOrder.update({
+            where: { id: wo.salesOrderId },
+            data: { status: 'IN_PRODUCTION', updatedBy: sub },
+          });
+        }
       }
       if (body.eventType === 'CHECK_OUT' && wo.status === 'IN_PROGRESS') {
         // Check if all lines are complete to auto-close
@@ -468,6 +505,19 @@ export const processingRoutes: FastifyPluginAsync = async (fastify) => {
             where: { id: wo.id },
             data: { status: 'COMPLETED', completedDate: new Date(), updatedBy: sub },
           });
+          // Auto-sync: check if all sibling WOs are complete, mark SO as READY_TO_SHIP
+          if (wo.salesOrderId) {
+            const siblingWOs = await prisma.workOrder.findMany({
+              where: { salesOrderId: wo.salesOrderId, deletedAt: null, id: { not: wo.id } },
+            });
+            const allSiblingsComplete = siblingWOs.every(w => w.status === 'COMPLETED');
+            if (allSiblingsComplete) {
+              await prisma.salesOrder.update({
+                where: { id: wo.salesOrderId },
+                data: { status: 'READY_TO_SHIP', updatedBy: sub },
+              });
+            }
+          }
         }
       }
 
