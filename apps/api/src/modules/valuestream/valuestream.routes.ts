@@ -1,5 +1,6 @@
 import { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
+import Anthropic from '@anthropic-ai/sdk';
 import { prisma } from '../../config/database';
 import { authenticate } from '../../middleware/auth.middleware';
 import { emitToCompany } from '../../websocket/ws.plugin';
@@ -337,6 +338,126 @@ const valuestream: FastifyPluginAsync = async (fastify) => {
 
     emitToCompany(user.companyId, 'VSM_UPDATE', { mapId: id, action: 'MAP_PROMOTED', map: updatedMap });
     return updatedMap;
+  });
+
+  // ── POST /vsm/:id/analyze — AI lean analysis via Anthropic ─────────────────
+  fastify.post('/:id/analyze', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const user = (request as any).user;
+
+    if (!process.env.ANTHROPIC_API_KEY) {
+      return reply.status(503).send({ error: 'AI analysis not configured — set ANTHROPIC_API_KEY in the environment.' });
+    }
+
+    const map = await (prisma as any).valueStreamMap.findFirst({
+      where: { id, companyId: user.companyId, deletedAt: null },
+      include: { nodes: { orderBy: { position: 'asc' } } },
+    });
+    if (!map) return reply.status(404).send({ error: 'Map not found' });
+
+    const nodes = map.nodes as Array<{
+      type: string; label: string; position: number;
+      cycleTimeSec: number | null; changeOverSec: number | null;
+      uptimePct: number | null; operatorCount: number | null;
+      batchSize: number | null; waitTimeSec: number | null; notes: string | null;
+    }>;
+
+    if (nodes.length === 0) {
+      return reply.status(422).send({ error: 'Add nodes to the map before running analysis.' });
+    }
+
+    // Build a structured description of the VSM for the AI
+    function fmtSec(s: number | null) { if (s == null) return null; if (s < 60) return `${s}s`; if (s < 3600) return `${Math.round(s/60)}m`; return `${(s/3600).toFixed(1)}h`; }
+
+    const nodeDescriptions = nodes.map((n, i) =>
+      `${i + 1}. [${n.type}] ${n.label}` +
+      (n.cycleTimeSec  != null ? ` | C/T: ${fmtSec(n.cycleTimeSec)}`   : '') +
+      (n.changeOverSec != null ? ` | C/O: ${fmtSec(n.changeOverSec)}`  : '') +
+      (n.uptimePct     != null ? ` | Uptime: ${n.uptimePct}%`          : '') +
+      (n.operatorCount != null ? ` | Operators: ${n.operatorCount}`     : '') +
+      (n.batchSize     != null ? ` | Batch: ${n.batchSize}`            : '') +
+      (n.waitTimeSec   != null ? ` | Wait before: ${fmtSec(n.waitTimeSec)}` : '')
+    ).join('\n');
+
+    const procNodes = nodes.filter((n) => n.type === 'PROCESS' || n.type === 'SHIPPING');
+    const totalCycle = procNodes.reduce((s, n) => s + (n.cycleTimeSec ?? 0), 0);
+    const totalWait  = nodes.reduce((s, n) => s + (n.waitTimeSec ?? 0), 0);
+    const totalLead  = totalCycle + totalWait;
+    const efficiency = totalLead > 0 ? ((totalCycle / totalLead) * 100).toFixed(1) : null;
+
+    const systemPrompt = `You are a lean manufacturing expert and value stream mapping (VSM) specialist with deep experience in metal service centers, fabrication, and industrial manufacturing.
+Analyze the provided Value Stream Map data and deliver a structured, actionable assessment.
+Format your response using clear sections with headers. Be specific, practical, and quantitative where possible.`;
+
+    const userPrompt = `Value Stream Map: "${map.name}"
+
+PROCESS FLOW (in sequence):
+${nodeDescriptions}
+
+CALCULATED METRICS:
+- Total Lead Time: ${fmtSec(totalLead) ?? '—'}
+- Total Value-Added (Cycle) Time: ${fmtSec(totalCycle) ?? '—'}
+- Total Wait/Queue Time: ${fmtSec(totalWait) ?? '—'}
+- Flow Efficiency: ${efficiency ? `${efficiency}%` : 'insufficient data'}
+
+Please provide:
+
+## 1. Current State Assessment
+Summarise the key characteristics of this value stream — what the flow looks like, major steps, and overall performance indicators.
+
+## 2. Waste Identification (8 Wastes of Lean)
+Identify specific wastes visible in this VSM: overproduction, waiting, transport, over-processing, inventory, motion, defects, and unused talent/skills.
+
+## 3. Bottleneck Analysis
+Identify the primary constraint(s) — processes with the highest cycle time, lowest uptime, or most wait time upstream. Explain why these are limiting throughput.
+
+## 4. Flow Efficiency Commentary
+Comment on the ${efficiency ? `${efficiency}%` : 'unknown'} flow efficiency. Is it typical for this type of operation? What is a realistic improvement target?
+
+## 5. Priority Recommendations
+Provide 3–5 specific, prioritised improvement actions. For each, include:
+- The specific issue or opportunity
+- The recommended countermeasure
+- Expected impact (time/cost/quality)
+
+## 6. Future State Suggestions
+Describe what the future state VSM should look like — which steps to combine, eliminate, or streamline. Include any lean tools that would help (e.g. kanban, SMED, OEE improvement, flow balancing).`;
+
+    reply.raw.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      Connection: 'keep-alive',
+    });
+
+    function sse(data: object) {
+      reply.raw.write(`data: ${JSON.stringify(data)}\n\n`);
+    }
+
+    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+    try {
+      const stream = await client.messages.stream({
+        model: 'claude-opus-4-6',
+        max_tokens: 2048,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: userPrompt }],
+      });
+
+      let fullText = '';
+      for await (const event of stream) {
+        if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+          fullText += event.delta.text;
+          sse({ type: 'chunk', chunk: event.delta.text });
+        }
+      }
+
+      sse({ type: 'done', text: fullText });
+    } catch (err) {
+      sse({ type: 'error', error: err instanceof Error ? err.message : 'Analysis failed' });
+      fastify.log.error(err, 'VSM AI analysis error');
+    }
+
+    reply.raw.end();
   });
 };
 

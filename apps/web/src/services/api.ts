@@ -323,6 +323,7 @@ export const vsmApi = {
   deleteNode:  (id: string, nodeId: string) => api.delete(`/vsm/${id}/nodes/${nodeId}`),
   reorderNodes:(id: string, nodeIds: string[]) => api.put(`/vsm/${id}/nodes/reorder`, { nodeIds }),
   promote:     (id: string)     => api.post(`/vsm/${id}/promote`),
+  analyzeMap:  (id: string)     => api.post(`/vsm/${id}/analyze`),
 };
 
 // Automation
