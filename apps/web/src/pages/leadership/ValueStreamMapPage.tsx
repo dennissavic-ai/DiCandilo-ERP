@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { vsmApi } from '../../services/api';
 import { useVSMSync, VSMViewer } from '../../hooks/useVSMSync';
 import {
+  LucideIcon,
   GitFork, Plus, Trash2, ChevronLeft, ChevronRight,
   Sparkles, PencilLine, Save, X, BarChart2, Info,
   Factory, Package, Truck, Users, Wifi, WifiOff,
@@ -69,7 +70,7 @@ const NODE_TYPE_META: Record<NodeType, {
   color: string;
   border: string;
   text: string;
-  icon: React.ComponentType<{ size?: number; className?: string }>;
+  icon: LucideIcon;
 }> = {
   SUPPLIER:  { label: 'Supplier',   color: 'bg-amber-50',   border: 'border-amber-300',  text: 'text-amber-800',  icon: Factory },
   PROCESS:   { label: 'Process',    color: 'bg-blue-50',    border: 'border-blue-300',   text: 'text-blue-800',   icon: GitFork },
