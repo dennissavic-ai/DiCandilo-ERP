@@ -23,7 +23,7 @@ export function parsePagination(query: PaginationQuery): {
   limit: number;
 } {
   const page = Math.max(1, query.page ?? 1);
-  const limit = Math.min(200, Math.max(1, query.limit ?? 25));
+  const limit = Math.min(500, Math.max(1, query.limit ?? 25));
   return {
     skip: (page - 1) * limit,
     take: limit,

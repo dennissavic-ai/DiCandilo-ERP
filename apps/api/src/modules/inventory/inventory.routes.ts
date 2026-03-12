@@ -81,7 +81,7 @@ const receiveStockSchema = z.object({
 
 const paginationSchema = z.object({
   page: z.coerce.number().int().min(1).optional(),
-  limit: z.coerce.number().int().min(1).max(200).optional(),
+  limit: z.coerce.number().int().min(1).max(500).optional(),
   search: z.string().optional(),
   locationId: z.string().uuid().optional(),
   productId: z.string().uuid().optional(),

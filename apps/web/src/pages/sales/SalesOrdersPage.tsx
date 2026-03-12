@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { salesApi, inventoryApi } from '../../services/api';
-import { Plus, Search, Filter, ShoppingCart, X, Trash2, FileText } from 'lucide-react';
+import { Plus, Search, Filter, ShoppingCart, X, Trash2, FileText, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
@@ -91,11 +91,22 @@ function ProductSearchSelect({ products, value, onChange }: { products: any[]; v
 
 
 type CreateMode = 'blank' | 'from_quote';
+type SortKey = 'orderNumber' | 'customer' | 'status' | 'lines' | 'totalAmount' | 'orderDate' | 'requiredDate';
+type SortDir = 'asc' | 'desc';
+
+function SortIcon({ col, sortBy, sortDir }: { col: SortKey; sortBy: SortKey | null; sortDir: SortDir }) {
+  if (sortBy !== col) return <ChevronsUpDown size={12} className="ml-1 inline opacity-40" />;
+  return sortDir === 'asc'
+    ? <ChevronUp size={12} className="ml-1 inline text-primary-600" />
+    : <ChevronDown size={12} className="ml-1 inline text-primary-600" />;
+}
 
 export function SalesOrdersPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
+  const [sortBy, setSortBy] = useState<SortKey | null>(null);
+  const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [newOpen, setNewOpen] = useState(false);
   const [mode, setMode] = useState<CreateMode>('blank');
   const [selectedQuoteId, setSelectedQuoteId] = useState('');
@@ -188,11 +199,31 @@ export function SalesOrdersPage() {
     });
   }
 
-  const orders = (data?.data ?? []).filter((o: any) =>
-    !search ||
-    o.orderNumber?.toLowerCase().includes(search.toLowerCase()) ||
-    o.customer?.name?.toLowerCase().includes(search.toLowerCase()),
-  );
+  function handleSort(col: SortKey) {
+    if (sortBy === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortBy(col); setSortDir('asc'); }
+  }
+
+  const orders = (data?.data ?? [])
+    .filter((o: any) =>
+      !search ||
+      o.orderNumber?.toLowerCase().includes(search.toLowerCase()) ||
+      o.customer?.name?.toLowerCase().includes(search.toLowerCase()),
+    )
+    .sort((a: any, b: any) => {
+      if (!sortBy) return 0;
+      let av: any, bv: any;
+      if (sortBy === 'orderNumber') { av = a.orderNumber ?? ''; bv = b.orderNumber ?? ''; }
+      else if (sortBy === 'customer') { av = a.customer?.name ?? ''; bv = b.customer?.name ?? ''; }
+      else if (sortBy === 'status') { av = a.status ?? ''; bv = b.status ?? ''; }
+      else if (sortBy === 'lines') { av = a.lines?.length ?? 0; bv = b.lines?.length ?? 0; }
+      else if (sortBy === 'totalAmount') { av = a.totalAmount ?? 0; bv = b.totalAmount ?? 0; }
+      else if (sortBy === 'orderDate') { av = a.orderDate ?? ''; bv = b.orderDate ?? ''; }
+      else if (sortBy === 'requiredDate') { av = a.requiredDate ?? ''; bv = b.requiredDate ?? ''; }
+      if (av < bv) return sortDir === 'asc' ? -1 : 1;
+      if (av > bv) return sortDir === 'asc' ? 1 : -1;
+      return 0;
+    });
 
   const totalOpen = orders.filter((o: any) => !['CLOSED', 'CANCELLED', 'INVOICED'].includes(o.status)).length;
   const totalValue = orders.reduce((s: number, o: any) => s + (o.totalAmount ?? 0), 0);
@@ -249,13 +280,23 @@ export function SalesOrdersPage() {
           <table className="table">
             <thead>
               <tr>
-                <th>Order #</th>
-                <th>Customer</th>
-                <th>Status</th>
-                <th>Lines</th>
-                <th className="text-right">Value</th>
-                <th>Order Date</th>
-                <th>Required</th>
+                {([
+                  ['orderNumber', 'Order #', ''],
+                  ['customer', 'Customer', ''],
+                  ['status', 'Status', ''],
+                  ['lines', 'Lines', ''],
+                  ['totalAmount', 'Value', 'text-right'],
+                  ['orderDate', 'Order Date', ''],
+                  ['requiredDate', 'Required', ''],
+                ] as [SortKey, string, string][]).map(([col, label, cls]) => (
+                  <th
+                    key={col}
+                    className={`cursor-pointer select-none hover:bg-steel-50 ${cls}`}
+                    onClick={() => handleSort(col)}
+                  >
+                    {label}<SortIcon col={col} sortBy={sortBy} sortDir={sortDir} />
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>

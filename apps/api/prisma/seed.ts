@@ -481,6 +481,56 @@ async function main() {
   }
   console.log('✔ Sample sales orders seeded:', createdSOs.length);
 
+  // ── Sample Sales Quotes ───────────────────────────────────────────────────
+  const quoteData = [
+    { customer: createdCustomers[0], status: 'ACCEPTED' as const, daysOld: 20, amount: 3250000 },
+    { customer: createdCustomers[1], status: 'ACCEPTED' as const, daysOld: 15, amount: 1875000 },
+    { customer: createdCustomers[2], status: 'ACCEPTED' as const, daysOld: 8,  amount: 5640000 },
+    { customer: createdCustomers[3], status: 'SENT'     as const, daysOld: 5,  amount: 920000  },
+    { customer: createdCustomers[4], status: 'SENT'     as const, daysOld: 3,  amount: 2100000 },
+    { customer: createdCustomers[5], status: 'DRAFT'    as const, daysOld: 1,  amount: 780000  },
+    { customer: createdCustomers[6], status: 'DRAFT'    as const, daysOld: 0,  amount: 4400000 },
+    { customer: createdCustomers[7], status: 'DECLINED' as const, daysOld: 30, amount: 1560000 },
+  ];
+  let quoteCount = 0;
+  for (let i = 0; i < quoteData.length; i++) {
+    const q = quoteData[i];
+    const quoteNum = `Q-${String(i + 1).padStart(5, '0')}`;
+    const existing = await prisma.salesQuote.findFirst({ where: { companyId: company.id, quoteNumber: quoteNum } });
+    if (!existing) {
+      await prisma.salesQuote.create({
+        data: {
+          companyId: company.id,
+          branchId: mainBranch.id,
+          customerId: q.customer.id,
+          quoteNumber: quoteNum,
+          status: q.status,
+          quoteDate: daysAgo(q.daysOld),
+          validUntil: daysFromNow(30),
+          currencyCode: 'AUD',
+          subtotal: BigInt(q.amount),
+          totalAmount: BigInt(q.amount),
+          notes: `Quote for ${q.customer.name}`,
+          createdBy: adminUser.id,
+          updatedBy: adminUser.id,
+          lines: {
+            create: [{
+              lineNumber: 1,
+              productId: createdProducts[i % createdProducts.length].id,
+              description: `Steel supply — ${q.customer.name}`,
+              uom: 'EA',
+              qty: 10,
+              unitPrice: BigInt(Math.round(q.amount / 10)),
+              lineTotal: BigInt(q.amount),
+            }],
+          },
+        },
+      });
+      quoteCount++;
+    }
+  }
+  console.log('✔ Sample quotes seeded:', quoteCount);
+
   // ── Sample Work Orders ────────────────────────────────────────────────────
   const woStatuses = ['DRAFT', 'SCHEDULED', 'IN_PROGRESS', 'IN_PROGRESS', 'SCHEDULED', 'COMPLETED', 'IN_PROGRESS', 'DRAFT', 'COMPLETED', 'SCHEDULED'];
   for (let i = 0; i < 10; i++) {
