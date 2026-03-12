@@ -2,7 +2,7 @@ import { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../../config/database';
 import { authenticate, requirePermission } from '../../middleware/auth.middleware';
-import { handleError, NotFoundError } from '../../utils/errors';
+import { handleError, NotFoundError, ValidationError } from '../../utils/errors';
 import { parsePagination, paginatedResponse } from '../../utils/pagination';
 import { InventoryService } from '../inventory/inventory.service';
 
@@ -113,13 +113,17 @@ export const shippingRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.get('/pick-lists', { preHandler: [authenticate] }, async (request, reply) => {
     try {
+      const { companyId } = request.user as { companyId: string };
       const { skip, take, page, limit } = parsePagination(request.query as { page?: number; limit?: number });
+      const where = {
+        manifest: { companyId, deletedAt: null },
+      };
       const [data, total] = await Promise.all([
         prisma.pickList.findMany({
-          skip, take, orderBy: { createdAt: 'desc' },
+          where, skip, take, orderBy: { createdAt: 'desc' },
           include: { _count: { select: { lines: true } } },
         }),
-        prisma.pickList.count(),
+        prisma.pickList.count({ where }),
       ]);
       return paginatedResponse(data, total, page, limit);
     } catch (err) { return handleError(reply, err); }
@@ -127,7 +131,7 @@ export const shippingRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.post('/pick-lists', { preHandler: [authenticate, requirePermission('shipping', 'create')] }, async (request, reply) => {
     try {
-      const { sub } = request.user as { sub: string };
+      const { companyId, sub } = request.user as { companyId: string; sub: string };
       const body = z.object({
         manifestId: z.string().uuid().optional(),
         assignedTo: z.string().uuid().optional(),
@@ -138,7 +142,13 @@ export const shippingRoutes: FastifyPluginAsync = async (fastify) => {
         })).min(1),
       }).parse(request.body);
 
-      const count = await prisma.pickList.count();
+      // Verify the manifest belongs to this company if specified
+      if (body.manifestId) {
+        const manifest = await prisma.shipmentManifest.findFirst({ where: { id: body.manifestId, companyId, deletedAt: null } });
+        if (!manifest) throw new NotFoundError('ShipmentManifest', body.manifestId);
+      }
+
+      const count = await prisma.pickList.count({ where: { manifest: { companyId } } });
       const pickNumber = `PK-${String(count + 1).padStart(6, '0')}`;
 
       const pick = await prisma.pickList.create({
@@ -250,9 +260,12 @@ export const shippingRoutes: FastifyPluginAsync = async (fastify) => {
 
       // Auto-generate customer invoice and post GL when shipment is marked shipped
       if (manifest.salesOrderId) {
-        autoInvoiceOnShipment(manifest.salesOrderId, companyId, sub).catch((e) =>
-          console.error('[invoice] Auto-invoice on shipment failed:', e)
-        );
+        try {
+          await autoInvoiceOnShipment(manifest.salesOrderId, companyId, sub);
+        } catch (e) {
+          console.error('[invoice] Auto-invoice on shipment failed:', e);
+          throw new ValidationError(`Shipment marked as shipped but auto-invoice failed: ${(e as Error).message}`);
+        }
       }
 
       return manifest;

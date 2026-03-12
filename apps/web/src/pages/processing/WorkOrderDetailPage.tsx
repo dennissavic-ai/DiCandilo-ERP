@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, useNavigate } from 'react-router-dom';
 import { processingApi } from '../../services/api';
-import { ArrowLeft, Play, Pause, CheckCircle, XCircle, Clock, Wrench } from 'lucide-react';
+import { ArrowLeft, Play, Pause, CheckCircle, XCircle, Clock, Wrench, Truck } from 'lucide-react';
 import { useState } from 'react';
 import { format } from 'date-fns';
 import { Modal } from '../../components/ui/Modal';
@@ -37,6 +37,8 @@ export function WorkOrderDetailPage() {
   const [newStatus, setNewStatus] = useState('');
   const [timeOpen, setTimeOpen] = useState(false);
   const [timeForm, setTimeForm] = useState({ hours: '', notes: '' });
+  const [shipmentModalOpen, setShipmentModalOpen] = useState(false);
+  const [shipmentSuccess, setShipmentSuccess] = useState<{ id: string } | null>(null);
 
   const statusMutation = useMutation({
     mutationFn: (status: string) => processingApi.updateStatus(id!, status),
@@ -48,6 +50,18 @@ export function WorkOrderDetailPage() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['work-order', id] }); setTimeOpen(false); setTimeForm({ hours: '', notes: '' }); },
   });
 
+  const shipmentMutation = useMutation({
+    mutationFn: () => processingApi.createShipment({
+      workOrderId: id,
+      salesOrderId: (wo as any)?.salesOrder?.id,
+    }),
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ['work-order', id] });
+      setShipmentModalOpen(false);
+      setShipmentSuccess({ id: (res.data as any).id });
+    },
+  });
+
   if (isLoading) return (
     <div className="max-w-[1100px] mx-auto animate-fade-in space-y-4">
       {[...Array(3)].map((_, i) => <div key={i} className="skeleton h-16 w-full rounded" />)}
@@ -57,6 +71,7 @@ export function WorkOrderDetailPage() {
   const w = wo as any;
   const status = w?.status ?? 'DRAFT';
   const transitions = STATUS_TRANSITIONS[status] ?? [];
+  const canShip = status === 'COMPLETED';
   const operations: any[] = w?.operations ?? [];
   const timeLogs: any[] = w?.timeLogs ?? [];
   const totalHours = timeLogs.reduce((s: number, t: any) => s + (t.hours ?? 0), 0);
@@ -100,6 +115,11 @@ export function WorkOrderDetailPage() {
           <button className="btn-secondary btn-sm" onClick={() => setTimeOpen(true)}>
             <Clock size={12} /> Log Time
           </button>
+          {canShip && (
+            <button className="btn-amber btn-sm" onClick={() => setShipmentModalOpen(true)}>
+              <Truck size={12} /> Create Shipment
+            </button>
+          )}
         </div>
       </div>
 
@@ -239,6 +259,40 @@ export function WorkOrderDetailPage() {
             <textarea className="input min-h-[70px] resize-none" value={timeForm.notes}
               onChange={(e) => setTimeForm({ ...timeForm, notes: e.target.value })} placeholder="What was done…" />
           </div>
+        </div>
+      </Modal>
+
+      {/* Create Shipment Modal */}
+      <Modal open={shipmentModalOpen} onClose={() => setShipmentModalOpen(false)} title="Create Shipment"
+        footer={<>
+          <button className="btn-secondary btn-sm" onClick={() => setShipmentModalOpen(false)}>Cancel</button>
+          <button className="btn-primary btn-sm" onClick={() => shipmentMutation.mutate()} disabled={shipmentMutation.isPending}>
+            {shipmentMutation.isPending ? 'Creating…' : 'Create Shipment'}
+          </button>
+        </>}>
+        <div className="text-sm text-steel-700 space-y-2">
+          <p>Create a shipping manifest for work order <strong>{w?.workOrderNumber}</strong>.</p>
+          {w?.salesOrder?.orderNumber && (
+            <p className="text-xs text-muted-foreground">Linked to sales order: <strong>{w.salesOrder.orderNumber}</strong></p>
+          )}
+          {w?.salesOrder?.customer?.name && (
+            <p className="text-xs text-muted-foreground">Customer: <strong>{w.salesOrder.customer.name}</strong></p>
+          )}
+        </div>
+      </Modal>
+
+      {/* Shipment Success Modal */}
+      <Modal open={!!shipmentSuccess} onClose={() => setShipmentSuccess(null)} title="Shipment Created">
+        <div className="text-sm text-steel-700 space-y-3">
+          <p>Shipment has been created successfully.</p>
+          {w?.salesOrder?.id && (
+            <button
+              className="inline-flex items-center gap-1.5 text-blue-600 hover:underline font-medium text-sm"
+              onClick={() => navigate(`/sales/orders/${w.salesOrder.id}`)}
+            >
+              <Truck size={13} /> View Sales Order
+            </button>
+          )}
         </div>
       </Modal>
     </div>

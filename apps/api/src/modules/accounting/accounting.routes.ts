@@ -2,6 +2,7 @@ import { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../../config/database';
 import { authenticate, requirePermission } from '../../middleware/auth.middleware';
+import { writeAuditLog } from '../../middleware/audit.middleware';
 import { handleError, NotFoundError, ValidationError } from '../../utils/errors';
 import { parsePagination, paginatedResponse } from '../../utils/pagination';
 
@@ -33,6 +34,7 @@ export const accountingRoutes: FastifyPluginAsync = async (fastify) => {
         parentId: z.string().uuid().optional(),
       }).parse(request.body);
       const account = await prisma.gLAccount.create({ data: { companyId, ...body } });
+      await writeAuditLog(request, 'CREATE', 'GLAccount', account.id, null, { code: body.code, name: body.name });
       return reply.status(201).send(account);
     } catch (err) { return handleError(reply, err); }
   });
@@ -100,6 +102,7 @@ export const accountingRoutes: FastifyPluginAsync = async (fastify) => {
         },
         include: { lines: { include: { glAccount: { select: { code: true, name: true } } } } },
       });
+      await writeAuditLog(request, 'CREATE', 'JournalEntry', je.id, null, { entryNumber, description: body.description });
       return reply.status(201).send(je);
     } catch (err) { return handleError(reply, err); }
   });
@@ -196,6 +199,7 @@ export const accountingRoutes: FastifyPluginAsync = async (fastify) => {
       });
 
       await postInvoiceToGL(companyId, invoice.id, Number(so.totalAmount), sub);
+      await writeAuditLog(request, 'CREATE', 'Invoice', invoice.id, null, { invoiceNumber, salesOrderId });
       return reply.status(201).send(invoice);
     } catch (err) { return handleError(reply, err); }
   });
@@ -306,6 +310,7 @@ export const accountingRoutes: FastifyPluginAsync = async (fastify) => {
         console.error('[GL] Payment posting failed:', e)
       );
 
+      await writeAuditLog(request, 'CREATE', 'Payment', payment.id, null, { invoiceId: id, amount: body.amount, method: body.method });
       return reply.status(201).send(payment);
     } catch (err) { return handleError(reply, err); }
   });

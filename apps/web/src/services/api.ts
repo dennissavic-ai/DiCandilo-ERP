@@ -217,6 +217,7 @@ export const processingApi = {
   addTimeEntry: (data: object) => api.post('/processing/time-entries', data),
   scan: (data: { jobBarcode: string; stationBarcode?: string; eventType: 'CHECK_IN' | 'CHECK_OUT' }) =>
     api.post('/processing/scan', data),
+  createShipment: (data: object) => api.post('/processing/shipments', data),
 };
 
 // Nesting
@@ -271,6 +272,7 @@ export const crmApi = {
   updateProspect: (id: string, data: object) => api.put(`/crm/prospects/${id}`, data),
   changeStage: (id: string, stage: string) => api.patch(`/crm/prospects/${id}/stage`, { stage }),
   deleteProspect: (id: string) => api.delete(`/crm/prospects/${id}`),
+  convertProspect: (id: string) => api.post(`/crm/prospects/${id}/convert`),
 
   // Call reports
   listCallReports: (params?: object) => api.get('/crm/call-reports', { params }),

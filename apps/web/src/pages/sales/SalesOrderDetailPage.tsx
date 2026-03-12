@@ -1,10 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useParams, useNavigate } from 'react-router-dom';
-import { salesApi, accountingApi } from '../../services/api';
-import { ArrowLeft, CheckCircle, XCircle, FileText, Truck, AlertCircle } from 'lucide-react';
-import { useState } from 'react';
+import { useParams, useNavigate, Link } from 'react-router-dom';
+import { salesApi, accountingApi, processingApi } from '../../services/api';
+import { ArrowLeft, CheckCircle, XCircle, FileText, Truck, AlertCircle, Wrench } from 'lucide-react';
+import React, { useState } from 'react';
 import { format } from 'date-fns';
 import { Modal } from '../../components/ui/Modal';
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 
 const STATUS_BADGE: Record<string, string> = {
   DRAFT: 'badge-gray', CONFIRMED: 'badge-blue', IN_PRODUCTION: 'badge-amber',
@@ -30,6 +31,9 @@ export function SalesOrderDetailPage() {
   const [statusModalOpen, setStatusModalOpen] = useState(false);
   const [newStatus, setNewStatus] = useState('');
   const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
+  const [woModalOpen, setWoModalOpen] = useState(false);
+  const [woSuccess, setWoSuccess] = useState<{ id: string; workOrderNumber: string } | null>(null);
+  const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
 
   const statusMutation = useMutation({
     mutationFn: (status: string) => salesApi.updateOrderStatus(id!, status),
@@ -50,6 +54,38 @@ export function SalesOrderDetailPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['sales-order', id] }),
   });
 
+  const woMutation = useMutation({
+    mutationFn: () => {
+      const o = order as any;
+      const woLines = (o?.lines ?? []).map((l: any, i: number) => ({
+        lineNumber: i + 1,
+        productId: l.productId,
+        description: l.description,
+        qtyRequired: parseFloat(l.qtyOrdered ?? 0),
+        uom: l.uom,
+      }));
+      return processingApi.createWorkOrder({
+        salesOrderId: id,
+        priority: 5,
+        lines: woLines,
+      });
+    },
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ['sales-order', id] });
+      setWoModalOpen(false);
+      const data = res.data as any;
+      setWoSuccess({ id: data.id, workOrderNumber: data.workOrderNumber });
+    },
+  });
+
+  const cancelMutation = useMutation({
+    mutationFn: () => salesApi.updateOrderStatus(id!, 'CANCELLED'),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['sales-order', id] });
+      setCancelConfirmOpen(false);
+    },
+  });
+
   if (isLoading) return (
     <div className="max-w-[1100px] mx-auto animate-fade-in space-y-4">
       {[...Array(3)].map((_, i) => <div key={i} className="skeleton h-16 w-full rounded" />)}
@@ -64,9 +100,10 @@ export function SalesOrderDetailPage() {
   const paid     = o?.amountPaid ?? 0;
   const balance  = total - paid;
 
-  const canConfirm = o?.status === 'DRAFT';
-  const canInvoice = ['SHIPPED','READY_TO_SHIP'].includes(o?.status ?? '');
-  const canCancel  = !['CLOSED','CANCELLED','INVOICED'].includes(o?.status ?? '');
+  const canConfirm  = o?.status === 'DRAFT';
+  const canInvoice  = ['SHIPPED','READY_TO_SHIP'].includes(o?.status ?? '');
+  const canCancel   = !['CLOSED','CANCELLED','INVOICED'].includes(o?.status ?? '');
+  const canCreateWO = ['CONFIRMED','IN_PRODUCTION'].includes(o?.status ?? '');
 
   return (
     <div className="max-w-[1100px] mx-auto animate-fade-in">
@@ -92,13 +129,18 @@ export function SalesOrderDetailPage() {
           <button className="btn-secondary btn-sm" onClick={() => { setNewStatus(o?.status); setStatusModalOpen(true); }}>
             Update Status
           </button>
+          {canCreateWO && (
+            <button className="btn-secondary btn-sm text-amber-600" onClick={() => setWoModalOpen(true)}>
+              <Wrench size={12} /> Create Work Order
+            </button>
+          )}
           {canInvoice && (
             <button className="btn-secondary btn-sm text-violet-600" onClick={() => setInvoiceModalOpen(true)}>
               <FileText size={12} /> Create Invoice
             </button>
           )}
           {canCancel && (
-            <button className="btn-secondary btn-sm text-red-600" onClick={() => statusMutation.mutate('CANCELLED')}>
+            <button className="btn-secondary btn-sm text-red-600" onClick={() => setCancelConfirmOpen(true)}>
               <XCircle size={12} /> Cancel
             </button>
           )}
@@ -110,6 +152,35 @@ export function SalesOrderDetailPage() {
           <AlertCircle size={14} /> Customer is on credit hold — check before shipping.
         </div>
       )}
+
+      {/* Document Lineage */}
+      <div className="flex flex-wrap items-center gap-2 text-sm text-gray-500 mb-4">
+        {o?.quote && (
+          <>
+            <Link to={`/sales/quotes/${o.quote.id}`} className="text-blue-600 hover:underline">
+              Quote {o.quote.quoteNumber}
+            </Link>
+            <span>→</span>
+          </>
+        )}
+        <span className="font-medium text-gray-900">SO {o?.orderNumber}</span>
+        {o?.workOrders?.map((wo: any) => (
+          <React.Fragment key={wo.id}>
+            <span>→</span>
+            <Link to={`/processing/work-orders/${wo.id}`} className="text-blue-600 hover:underline">
+              {wo.workOrderNumber}
+            </Link>
+          </React.Fragment>
+        ))}
+        {o?.invoices?.map((inv: any) => (
+          <React.Fragment key={inv.id}>
+            <span>→</span>
+            <Link to={`/accounting/invoices`} className="text-blue-600 hover:underline">
+              {inv.invoiceNumber}
+            </Link>
+          </React.Fragment>
+        ))}
+      </div>
 
       <div className="grid grid-cols-3 gap-6">
         {/* Lines */}
@@ -223,6 +294,45 @@ export function SalesOrderDetailPage() {
           This will create a tax invoice for order <strong>{o?.orderNumber}</strong> totalling <strong>{fmtMoney(total)}</strong> (inc. GST).
         </p>
       </Modal>
+
+      {/* Create Work Order Modal */}
+      <Modal open={woModalOpen} onClose={() => setWoModalOpen(false)} title="Create Work Order"
+        footer={<>
+          <button className="btn-secondary btn-sm" onClick={() => setWoModalOpen(false)}>Cancel</button>
+          <button className="btn-primary btn-sm" onClick={() => woMutation.mutate()} disabled={woMutation.isPending}>
+            {woMutation.isPending ? 'Creating…' : 'Create Work Order'}
+          </button>
+        </>}>
+        <p className="text-sm text-steel-700">
+          This will create a work order for <strong>{o?.orderNumber}</strong> with {lines.length} line{lines.length !== 1 ? 's' : ''} pre-filled from the sales order.
+        </p>
+        <p className="text-xs text-muted-foreground mt-2">Priority: 5 (Medium)</p>
+      </Modal>
+
+      {/* Work Order Success Modal */}
+      <Modal open={!!woSuccess} onClose={() => setWoSuccess(null)} title="Work Order Created">
+        <div className="text-sm text-steel-700 space-y-3">
+          <p>Work order <strong>{woSuccess?.workOrderNumber}</strong> has been created successfully.</p>
+          <Link
+            to={`/processing/work-orders/${woSuccess?.id}`}
+            className="inline-flex items-center gap-1.5 text-blue-600 hover:underline font-medium"
+          >
+            <Wrench size={13} /> View Work Order
+          </Link>
+        </div>
+      </Modal>
+
+      {/* Cancel Confirmation Dialog */}
+      <ConfirmDialog
+        open={cancelConfirmOpen}
+        onClose={() => setCancelConfirmOpen(false)}
+        onConfirm={() => cancelMutation.mutate()}
+        title="Cancel Sales Order"
+        message={`Are you sure you want to cancel order ${o?.orderNumber}? This action cannot be undone.`}
+        confirmLabel="Cancel Order"
+        confirmVariant="danger"
+        isLoading={cancelMutation.isPending}
+      />
     </div>
   );
 }

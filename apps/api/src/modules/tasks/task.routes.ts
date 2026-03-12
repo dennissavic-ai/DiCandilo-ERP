@@ -2,6 +2,7 @@ import { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../../config/database';
 import { authenticate } from '../../middleware/auth.middleware';
+import { writeAuditLog } from '../../middleware/audit.middleware';
 import { handleError, NotFoundError } from '../../utils/errors';
 import { parsePagination, paginatedResponse } from '../../utils/pagination';
 
@@ -65,6 +66,7 @@ export const taskRoutes: FastifyPluginAsync = async (fastify) => {
         data: { companyId, ...body, dueDate: body.dueDate ? new Date(body.dueDate) : undefined, createdById: sub },
         include: { assignee: { select: { id: true, firstName: true, lastName: true } } },
       });
+      await writeAuditLog(request, 'CREATE', 'Task', task.id, null, { title: body.title });
       return reply.status(201).send(task);
     } catch (err) { return handleError(reply, err); }
   });
@@ -84,6 +86,7 @@ export const taskRoutes: FastifyPluginAsync = async (fastify) => {
       if (body.dueDate) updates.dueDate = new Date(body.dueDate);
       if (body.status === 'DONE') updates.completedAt = new Date();
       const task = await prisma.task.update({ where: { id }, data: updates });
+      await writeAuditLog(request, 'UPDATE', 'Task', id, null, body);
       return task;
     } catch (err) { return handleError(reply, err); }
   });
@@ -92,6 +95,7 @@ export const taskRoutes: FastifyPluginAsync = async (fastify) => {
     try {
       const { id } = request.params as { id: string };
       await prisma.task.update({ where: { id }, data: { deletedAt: new Date() } });
+      await writeAuditLog(request, 'DELETE', 'Task', id, null, null);
       return reply.status(204).send();
     } catch (err) { return handleError(reply, err); }
   });

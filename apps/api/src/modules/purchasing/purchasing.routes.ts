@@ -4,11 +4,37 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/database';
 import { authenticate, requirePermission } from '../../middleware/auth.middleware';
 import { writeAuditLog } from '../../middleware/audit.middleware';
-import { handleError, NotFoundError, ConflictError } from '../../utils/errors';
+import { handleError, NotFoundError, ConflictError, ValidationError } from '../../utils/errors';
 import { parsePagination, paginatedResponse } from '../../utils/pagination';
 import { InventoryService } from '../inventory/inventory.service';
 
 const inventoryService = new InventoryService();
+
+// ── Sequential number generation with collision retry ──────────────────────
+async function generateSequentialNumber(
+  companyId: string,
+  prefix: string,
+  model: 'salesOrder' | 'salesQuote' | 'invoice' | 'purchaseOrder' | 'workOrder' | 'shipmentManifest' | 'pickList',
+): Promise<string> {
+  const numberField =
+    model === 'salesOrder' ? 'orderNumber' :
+    model === 'salesQuote' ? 'quoteNumber' :
+    model === 'invoice' ? 'invoiceNumber' :
+    model === 'purchaseOrder' ? 'poNumber' :
+    model === 'workOrder' ? 'workOrderNumber' :
+    model === 'shipmentManifest' ? 'manifestNumber' :
+    'pickNumber';
+
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const count = await (prisma as any)[model].count({ where: { companyId } });
+    const num = `${prefix}-${String(count + 1 + attempt).padStart(6, '0')}`;
+    const existing = await (prisma as any)[model].findFirst({
+      where: { companyId, [numberField]: num },
+    });
+    if (!existing) return num;
+  }
+  return `${prefix}-${Date.now()}`;
+}
 
 /** Post AP journal: DR Inventory (1200) / CR Accounts Payable (2000) */
 async function postPOReceiptToGL(companyId: string, poId: string, amount: number, userId: string) {
@@ -92,6 +118,7 @@ export const purchasingRoutes: FastifyPluginAsync = async (fastify) => {
       const existing = await prisma.supplier.findFirst({ where: { companyId, code: body.code, deletedAt: null } });
       if (existing) throw new ConflictError(`Supplier code '${body.code}' already exists`);
       const supplier = await prisma.supplier.create({ data: { companyId, ...body, billingAddress: body.billingAddress as Prisma.InputJsonValue, contacts: body.contacts as Prisma.InputJsonValue, createdBy: sub, updatedBy: sub } });
+      await writeAuditLog(request, 'CREATE', 'Supplier', supplier.id, null, { code: body.code, name: body.name });
       return reply.status(201).send(supplier);
     } catch (err) { return handleError(reply, err); }
   });
@@ -102,7 +129,19 @@ export const purchasingRoutes: FastifyPluginAsync = async (fastify) => {
       const { id } = request.params as { id: string };
       const s = await prisma.supplier.findFirst({ where: { id, companyId, deletedAt: null } });
       if (!s) throw new NotFoundError('Supplier', id);
-      const updated = await prisma.supplier.update({ where: { id }, data: { ...(request.body as object), updatedBy: sub } });
+      const updateBody = z.object({
+        name: z.string().min(1).optional(),
+        legalName: z.string().optional(),
+        taxId: z.string().optional(),
+        currencyCode: z.string().optional(),
+        paymentTerms: z.number().int().min(0).optional(),
+        billingAddress: z.record(z.unknown()).optional(),
+        contacts: z.array(z.record(z.unknown())).optional(),
+        notes: z.string().optional(),
+        isActive: z.boolean().optional(),
+      }).parse(request.body);
+      const updated = await prisma.supplier.update({ where: { id }, data: { ...updateBody, updatedBy: sub } });
+      await writeAuditLog(request, 'UPDATE', 'Supplier', id, null, updateBody);
       return updated;
     } catch (err) { return handleError(reply, err); }
   });
@@ -176,9 +215,8 @@ export const purchasingRoutes: FastifyPluginAsync = async (fastify) => {
         lines: z.array(poLineSchema).min(1),
       }).parse(request.body);
 
-      // Generate PO number
-      const count = await prisma.purchaseOrder.count({ where: { companyId } });
-      const poNumber = `PO-${String(count + 1).padStart(6, '0')}`;
+      // Generate PO number with collision retry
+      const poNumber = await generateSequentialNumber(companyId, 'PO', 'purchaseOrder');
 
       const subtotal = body.lines.reduce((sum, l) => sum + Math.round(l.qtyOrdered * l.unitPrice), 0);
       const totalCost = subtotal + body.freightCost + body.dutyCost + body.otherCosts;
@@ -270,27 +308,37 @@ export const purchasingRoutes: FastifyPluginAsync = async (fastify) => {
   // Submit / approve PO
   fastify.patch('/orders/:id/submit', { preHandler: [authenticate, requirePermission('purchasing', 'edit')] }, async (request, reply) => {
     try {
+      const { companyId, sub } = request.user as { companyId: string; sub: string };
       const { id } = request.params as { id: string };
+      const existing = await prisma.purchaseOrder.findFirst({ where: { id, companyId, deletedAt: null } });
+      if (!existing) throw new NotFoundError('PurchaseOrder', id);
+      if (existing.status !== 'DRAFT') throw new ValidationError(`Can only submit DRAFT POs, current: ${existing.status}`);
       const po = await prisma.purchaseOrder.update({
         where: { id },
-        data: { status: 'SUBMITTED', updatedBy: (request.user as { sub: string }).sub },
+        data: { status: 'SUBMITTED', updatedBy: sub },
       });
+      await writeAuditLog(request, 'UPDATE', 'PurchaseOrder', id, null, { status: 'SUBMITTED' });
       return po;
     } catch (err) { return handleError(reply, err); }
   });
 
   fastify.patch('/orders/:id/approve', { preHandler: [authenticate, requirePermission('purchasing', 'approve')] }, async (request, reply) => {
     try {
+      const { companyId, sub } = request.user as { companyId: string; sub: string };
       const { id } = request.params as { id: string };
+      const existing = await prisma.purchaseOrder.findFirst({ where: { id, companyId, deletedAt: null } });
+      if (!existing) throw new NotFoundError('PurchaseOrder', id);
+      if (existing.status !== 'SUBMITTED') throw new ValidationError(`Can only approve SUBMITTED POs, current: ${existing.status}`);
       const po = await prisma.purchaseOrder.update({
         where: { id },
         data: {
           status: 'APPROVED',
-          approvedBy: (request.user as { sub: string }).sub,
+          approvedBy: sub,
           approvedAt: new Date(),
-          updatedBy: (request.user as { sub: string }).sub,
+          updatedBy: sub,
         },
       });
+      await writeAuditLog(request, 'UPDATE', 'PurchaseOrder', id, null, { status: 'APPROVED' });
       return po;
     } catch (err) { return handleError(reply, err); }
   });
@@ -326,74 +374,77 @@ export const purchasingRoutes: FastifyPluginAsync = async (fastify) => {
       const count = await prisma.pOReceipt.count({ where: { purchaseOrderId: id } });
       const receiptNumber = `REC-${id.slice(0, 8)}-${count + 1}`;
 
-      const receipt = await prisma.pOReceipt.create({
-        data: {
-          purchaseOrderId: id,
-          receiptNumber,
-          receivedBy: sub,
-          notes: body.notes,
-          createdBy: sub,
-          lines: {
-            create: body.lines.map((l) => ({
-              purchaseOrderLineId: l.purchaseOrderLineId,
-              qtyReceived: l.qtyReceived,
-              qtyAccepted: l.qtyReceived,
-              heatNumber: l.heatNumber,
-              certNumber: l.certNumber,
-              locationId: l.locationId,
-            })),
+      const receipt = await prisma.$transaction(async (tx) => {
+        const rec = await tx.pOReceipt.create({
+          data: {
+            purchaseOrderId: id,
+            receiptNumber,
+            receivedBy: sub,
+            notes: body.notes,
+            createdBy: sub,
+            lines: {
+              create: body.lines.map((l) => ({
+                purchaseOrderLineId: l.purchaseOrderLineId,
+                qtyReceived: l.qtyReceived,
+                qtyAccepted: l.qtyReceived,
+                heatNumber: l.heatNumber,
+                certNumber: l.certNumber,
+                locationId: l.locationId,
+              })),
+            },
           },
-        },
-        include: { lines: true },
-      });
-
-      // ── Step 1: receive stock into inventory ──────────────────────────────
-      // Use the first location specified, or fall back to no location (requires manual fix)
-      const defaultLocationId = body.lines.find((l) => l.locationId)?.locationId;
-      if (defaultLocationId) {
-        const invLines = body.lines
-          .map((l) => {
-            const poLine = poLineMap.get(l.purchaseOrderLineId);
-            if (!poLine) return null;
-            return {
-              productId: poLine.productId,
-              qtyReceived: l.qtyReceived,
-              unitCost: Number(poLine.unitPrice),
-              heatNumber: l.heatNumber,
-              certNumber: l.certNumber,
-              thickness: l.thickness,
-              width: l.width,
-              length: l.length,
-            };
-          })
-          .filter((l): l is NonNullable<typeof l> => l !== null);
-
-        if (invLines.length > 0) {
-          await inventoryService.receiveStock(
-            { purchaseOrderId: id, locationId: defaultLocationId, lines: invLines, notes: body.notes, createdBy: sub },
-            companyId
-          );
-        }
-      }
-
-      // ── Step 2: update PO line qtyReceived ───────────────────────────────
-      for (const rl of body.lines) {
-        const poLine = poLineMap.get(rl.purchaseOrderLineId);
-        if (!poLine) continue;
-        const newQtyReceived = Number(poLine.qtyReceived) + rl.qtyReceived;
-        await prisma.purchaseOrderLine.update({
-          where: { id: rl.purchaseOrderLineId },
-          data: { qtyReceived: newQtyReceived },
+          include: { lines: true },
         });
-      }
 
-      // ── Step 3: update PO status ─────────────────────────────────────────
-      const updatedLines = await prisma.purchaseOrderLine.findMany({ where: { purchaseOrderId: id } });
-      const allFulfilled = updatedLines.every((l) => Number(l.qtyReceived) >= Number(l.qtyOrdered));
-      const anyFulfilled = updatedLines.some((l) => Number(l.qtyReceived) > 0);
-      await prisma.purchaseOrder.update({
-        where: { id },
-        data: { status: allFulfilled ? 'RECEIVED' : anyFulfilled ? 'PARTIALLY_RECEIVED' : undefined, updatedBy: sub },
+        // ── Step 1: receive stock into inventory ──────────────────────────────
+        const defaultLocationId = body.lines.find((l) => l.locationId)?.locationId;
+        if (defaultLocationId) {
+          const invLines = body.lines
+            .map((l) => {
+              const poLine = poLineMap.get(l.purchaseOrderLineId);
+              if (!poLine) return null;
+              return {
+                productId: poLine.productId,
+                qtyReceived: l.qtyReceived,
+                unitCost: Number(poLine.unitPrice),
+                heatNumber: l.heatNumber,
+                certNumber: l.certNumber,
+                thickness: l.thickness,
+                width: l.width,
+                length: l.length,
+              };
+            })
+            .filter((l): l is NonNullable<typeof l> => l !== null);
+
+          if (invLines.length > 0) {
+            await inventoryService.receiveStock(
+              { purchaseOrderId: id, locationId: defaultLocationId, lines: invLines, notes: body.notes, createdBy: sub },
+              companyId
+            );
+          }
+        }
+
+        // ── Step 2: update PO line qtyReceived ───────────────────────────────
+        for (const rl of body.lines) {
+          const poLine = poLineMap.get(rl.purchaseOrderLineId);
+          if (!poLine) continue;
+          const newQtyReceived = Number(poLine.qtyReceived) + rl.qtyReceived;
+          await tx.purchaseOrderLine.update({
+            where: { id: rl.purchaseOrderLineId },
+            data: { qtyReceived: newQtyReceived },
+          });
+        }
+
+        // ── Step 3: update PO status ─────────────────────────────────────────
+        const updatedLines = await tx.purchaseOrderLine.findMany({ where: { purchaseOrderId: id } });
+        const allFulfilled = updatedLines.every((l) => Number(l.qtyReceived) >= Number(l.qtyOrdered));
+        const anyFulfilled = updatedLines.some((l) => Number(l.qtyReceived) > 0);
+        await tx.purchaseOrder.update({
+          where: { id },
+          data: { status: allFulfilled ? 'RECEIVED' : anyFulfilled ? 'PARTIALLY_RECEIVED' : undefined, updatedBy: sub },
+        });
+
+        return rec;
       });
 
       // ── Step 4: post AP GL entry (DR Inventory / CR Accounts Payable) ────
@@ -405,6 +456,7 @@ export const purchasingRoutes: FastifyPluginAsync = async (fastify) => {
         console.error('[GL] PO receipt posting failed:', e)
       );
 
+      await writeAuditLog(request, 'CREATE', 'POReceipt', receipt.id, null, { purchaseOrderId: id, receiptNumber });
       return reply.status(201).send(receipt);
     } catch (err) { return handleError(reply, err); }
   });
