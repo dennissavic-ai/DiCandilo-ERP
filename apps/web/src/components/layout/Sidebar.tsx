@@ -3,8 +3,8 @@ import {
   Package, ShoppingCart, Truck, BarChart3,
   FileText, Wrench, DollarSign, Users, ClipboardList, QrCode,
   Factory, ChevronDown, Layers, TrendingUp, Settings,
-  BookOpen, Gauge, Mail, ArrowLeftRight, FileCheck,
-  Tag, Globe, Phone, Zap, Plug, Kanban, Clock, Activity,
+  BookOpen, Gauge, Mail, ArrowLeftRight,
+  Tag, Phone, Zap, Plug, Kanban, Clock, Activity, Sparkles, GitFork,
 } from 'lucide-react';
 import { useState } from 'react';
 import clsx from 'clsx';
@@ -22,31 +22,45 @@ interface NavItem {
   end?: boolean;
 }
 
-const NAV_MAIN: NavItem[] = [
+const NAV_LEADERSHIP: NavItem[] = [
   { label: 'Dashboard', to: '/', icon: Gauge, end: true },
+  {
+    label: 'Accounting', icon: DollarSign,
+    children: [
+      { label: 'Dashboard',         to: '/accounting/dashboard',         icon: Activity },
+      { label: 'Invoices',          to: '/accounting/invoices',          icon: FileText },
+      { label: 'Cash Flow',         to: '/accounting/cashflow',          icon: TrendingUp },
+      { label: 'AR Ageing',         to: '/accounting/ar-ageing',         icon: BarChart3 },
+      { label: 'Chart of Accounts', to: '/accounting/chart-of-accounts', icon: BookOpen },
+    ],
+  },
+  { label: 'Value Stream Map', to: '/leadership/value-stream-map', icon: GitFork },
+  { label: 'Users', to: '/admin/users', icon: Users },
 ];
 
-const NAV_OPS: NavItem[] = [
+const NAV_GROWTH: NavItem[] = [
   {
-    label: 'Inventory', icon: Package,
+    label: 'CRM', icon: Phone,
     children: [
-      { label: 'Dashboard',        to: '/inventory/dashboard',        icon: Activity },
-      { label: 'Products',         to: '/inventory/products',         icon: Package },
-      { label: 'Stock on Hand',    to: '/inventory',                  icon: Layers },
-      { label: 'Receive Stock',    to: '/inventory/receive',          icon: Truck },
-      { label: 'Transfer Stock',   to: '/inventory/transfer',         icon: ArrowLeftRight },
-      { label: 'Auto Fulfillment', to: '/inventory/auto-fulfillment', icon: Zap },
-      { label: 'Adjust Stock',     to: '/inventory/adjust',           icon: Settings },
+      { label: 'Pipeline',     to: '/crm/prospects',      icon: TrendingUp },
+      { label: 'Contacts',     to: '/crm/contacts',       icon: Users },
+      { label: 'Customers',    to: '/sales/customers',    icon: Users },
+      { label: 'Call Reports', to: '/crm/call-reports',   icon: Phone },
+      { label: 'Automation',   to: '/admin/automation',   icon: Mail },
+      { label: 'Integrations', to: '/admin/integrations', icon: Plug },
     ],
   },
   {
     label: 'Sales', icon: ShoppingCart,
     children: [
-      { label: 'Quotes',      to: '/sales/quotes',      icon: ClipboardList },
-      { label: 'Sales Orders',to: '/sales/orders',      icon: FileText },
-      { label: 'Price Books', to: '/sales/price-books', icon: Tag },
+      { label: 'Quotes',       to: '/sales/quotes',      icon: ClipboardList },
+      { label: 'Sales Orders', to: '/sales/orders',      icon: FileText },
+      { label: 'Price Books',  to: '/sales/price-books', icon: Tag },
     ],
   },
+];
+
+const NAV_OPS: NavItem[] = [
   {
     label: 'Purchasing', icon: Truck,
     children: [
@@ -55,47 +69,30 @@ const NAV_OPS: NavItem[] = [
     ],
   },
   {
+    label: 'Inventory', icon: Package,
+    children: [
+      { label: 'Dashboard',        to: '/inventory/dashboard',        icon: Activity },
+      { label: 'Products',         to: '/inventory/products',         icon: Package },
+      { label: 'Stock on Hand',    to: '/inventory',                  icon: Layers },
+      { label: 'Transfer Stock',   to: '/inventory/transfer',         icon: ArrowLeftRight },
+      { label: 'Auto Fulfillment', to: '/inventory/auto-fulfillment', icon: Zap },
+      { label: 'Adjust Stock',     to: '/inventory/adjust',           icon: Settings },
+    ],
+  },
+  {
     label: 'Operations', icon: Wrench,
     children: [
-      { label: 'Dashboard',         to: '/processing/dashboard',    icon: Activity },
-      { label: 'Work Orders',       to: '/processing/work-orders',  icon: ClipboardList },
-      { label: 'Kanban Board',      to: '/processing/kanban',       icon: Kanban },
-      { label: 'Time Tracking',     to: '/processing/time-tracking', icon: Clock },
-      { label: 'Scheduling',        to: '/processing/schedule',     icon: BarChart3 },
-      { label: 'Shipping / Dispatch', to: '/shipping',              icon: Truck },
+      { label: 'Dashboard',     to: '/processing/dashboard',     icon: Activity },
+      { label: 'Work Orders',   to: '/processing/work-orders',   icon: ClipboardList },
+      { label: 'Kanban Board',  to: '/processing/kanban',        icon: Kanban },
+      { label: 'Receive Stock', to: '/inventory/receive',        icon: Package },
+      { label: 'Planning',      to: '/processing/planning',      icon: Sparkles },
+      { label: 'Time Tracking', to: '/processing/time-tracking', icon: Clock },
+      { label: 'Scheduling',    to: '/processing/schedule',      icon: BarChart3 },
+      { label: 'Dispatch',      to: '/shipping',                 icon: Truck },
     ],
   },
-  {
-    label: 'Accounting', icon: DollarSign,
-    children: [
-      { label: 'Dashboard',         to: '/accounting/dashboard',          icon: Activity },
-      { label: 'Invoices',          to: '/accounting/invoices',           icon: FileText },
-      { label: 'Cash Flow',         to: '/accounting/cashflow',           icon: TrendingUp },
-      { label: 'AR Ageing',         to: '/accounting/ar-ageing',          icon: BarChart3 },
-      { label: 'Chart of Accounts', to: '/accounting/chart-of-accounts',  icon: BookOpen },
-    ],
-  },
-  {
-    label: 'CRM', icon: Phone,
-    children: [
-      { label: 'Pipeline',     to: '/crm/prospects',    icon: TrendingUp },
-      { label: 'Contacts',     to: '/crm/contacts',     icon: Users },
-      { label: 'Customers',    to: '/sales/customers',  icon: Users },
-      { label: 'Call Reports', to: '/crm/call-reports', icon: Phone },
-    ],
-  },
-];
-
-const NAV_ANALYTICS: NavItem[] = [
-  { label: 'Reporting', to: '/reporting', icon: BarChart3 },
-  { label: 'Tasks',     to: '/tasks',     icon: ClipboardList },
-];
-
-const NAV_ADMIN: NavItem[] = [
-  { label: 'Scan Barcode',  to: '/scan',                   icon: QrCode },
-  { label: 'Automation',    to: '/admin/automation',        icon: Mail },
-  { label: 'Integrations',  to: '/admin/integrations',      icon: Plug },
-  { label: 'Users',         to: '/admin/users',             icon: Users },
+  { label: 'Scan Barcode', to: '/scan', icon: QrCode },
 ];
 
 function useGroupActive(children: NavChild[]) {
@@ -168,6 +165,14 @@ function NavItemLink({ item }: { item: NavItem }) {
   );
 }
 
+function renderItems(items: NavItem[]) {
+  return items.map((item) =>
+    item.children
+      ? <NavGroup key={item.label} item={item as NavItem & { children: NavChild[] }} />
+      : <NavItemLink key={item.to} item={item} />
+  );
+}
+
 export function Sidebar() {
   return (
     <aside
@@ -176,7 +181,6 @@ export function Sidebar() {
     >
       {/* Logo */}
       <div className="flex items-center gap-3 px-4 py-[18px] border-b border-white/[0.07]">
-        {/* Icon — red accent square matching logo mark */}
         <div
           className="w-8 h-8 flex items-center justify-center flex-shrink-0"
           style={{ background: 'hsl(var(--brand-red))' }}
@@ -201,21 +205,14 @@ export function Sidebar() {
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto py-2 px-2 space-y-px">
-        <SectionLabel label="Main" />
-        {NAV_MAIN.map((item) => <NavItemLink key={item.to} item={item} />)}
+        <SectionLabel label="Leadership" />
+        {renderItems(NAV_LEADERSHIP)}
+
+        <SectionLabel label="Growth" />
+        {renderItems(NAV_GROWTH)}
 
         <SectionLabel label="Operations" />
-        {NAV_OPS.map((item) =>
-          item.children
-            ? <NavGroup key={item.label} item={item as NavItem & { children: NavChild[] }} />
-            : <NavItemLink key={item.to} item={item} />
-        )}
-
-        <SectionLabel label="Analytics" />
-        {NAV_ANALYTICS.map((item) => <NavItemLink key={item.to} item={item} />)}
-
-        <SectionLabel label="Admin" />
-        {NAV_ADMIN.map((item) => <NavItemLink key={item.to} item={item} />)}
+        {renderItems(NAV_OPS)}
       </nav>
 
       {/* Footer status */}

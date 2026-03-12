@@ -17,6 +17,7 @@
     "db:generate": "prisma generate"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.78.0",
     "@dicandilo/shared": "*",
     "@fastify/cors": "^11.0.0",
     "@fastify/helmet": "^13.0.0",

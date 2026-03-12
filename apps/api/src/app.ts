@@ -32,6 +32,9 @@ import { fulfillmentRoutes } from './modules/fulfillment/fulfillment.routes';
 import { startFulfillmentScheduler } from './modules/fulfillment/fulfillment.scheduler';
 import { crmRoutes } from './modules/crm/crm.routes';
 import { integrationRoutes } from './modules/integrations/integrations.routes';
+import { aiRoutes } from './modules/ai/ai.routes';
+import planningRoutes from './modules/planning/planning.routes';
+import valuestreamRoutes from './modules/valuestream/valuestream.routes';
 
 const app = Fastify({
   logger: {
@@ -180,6 +183,9 @@ async function buildApp() {
   await app.register(fulfillmentRoutes, { prefix: `${prefix}/inventory/fulfillment` });
   await app.register(crmRoutes, { prefix: `${prefix}/crm` });
   await app.register(integrationRoutes, { prefix: `${prefix}/integrations` });
+  await app.register(aiRoutes, { prefix: `${prefix}/ai` });
+  await app.register(planningRoutes, { prefix: `${prefix}/planning` });
+  await app.register(valuestreamRoutes, { prefix: `${prefix}/vsm` });
   await app.register(websocketPlugin, { prefix: `${prefix}/ws` });
 
   // ── Graceful shutdown ─────────────────────────────────────────────────────

@@ -8,57 +8,74 @@ import { InventoryService } from '../inventory/inventory.service';
 
 const inventoryService = new InventoryService();
 
-/** Auto-create a customer invoice and post AR/Revenue GL when an order ships. */
+/** Promote a DRAFT invoice to SENT (or create one) and post AR/Revenue GL when an order ships. */
 async function autoInvoiceOnShipment(salesOrderId: string, companyId: string, userId: string) {
   const so = await prisma.salesOrder.findFirst({
     where: { id: salesOrderId, companyId, deletedAt: null },
     include: { lines: true, customer: true, invoices: { where: { deletedAt: null } } },
   });
   if (!so) return;
-  if (so.invoices.length > 0) return; // already invoiced — skip
 
   const now = new Date();
   const period = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  const dueDate = new Date(now);
-  dueDate.setDate(dueDate.getDate() + (so.customer?.creditTerms ?? 30));
 
-  const count = await prisma.invoice.count({ where: { companyId } });
-  const invoiceNumber = `INV-${String(count + 1).padStart(6, '0')}`;
+  // Skip if a non-draft invoice already exists (e.g. SENT, PAID)
+  const alreadyIssued = so.invoices.find((inv) => inv.status !== 'DRAFT');
+  if (alreadyIssued) return;
 
-  const invoice = await prisma.invoice.create({
-    data: {
-      companyId,
-      customerId: so.customerId,
-      salesOrderId: so.id,
-      invoiceNumber,
-      dueDate,
-      currencyCode: so.currencyCode,
-      subtotal: so.subtotal,
-      discountAmount: so.discountAmount,
-      taxAmount: so.taxAmount,
-      freightAmount: so.freightAmount,
-      totalAmount: so.totalAmount,
-      balanceDue: so.totalAmount,
-      terms: so.terms,
-      notes: so.notes,
-      status: 'SENT',
-      createdBy: userId,
-      updatedBy: userId,
-      lines: {
-        create: so.lines.map((l) => ({
-          salesOrderLineId: l.id,
-          lineNumber: l.lineNumber,
-          description: l.description,
-          uom: l.uom,
-          qty: l.qtyOrdered,
-          unitPrice: l.unitPrice,
-          discountPct: l.discountPct,
-          lineSubtotal: l.lineTotal,
-          lineTotal: l.lineTotal,
-        })),
+  let invoice: { id: string };
+  let invoiceNumber: string;
+
+  const draftInvoice = so.invoices.find((inv) => inv.status === 'DRAFT');
+  if (draftInvoice) {
+    // Promote the draft: mark SENT and set invoiceDate to now
+    invoiceNumber = draftInvoice.invoiceNumber;
+    invoice = await prisma.invoice.update({
+      where: { id: draftInvoice.id },
+      data: { status: 'SENT', invoiceDate: now, updatedBy: userId },
+    });
+  } else {
+    // No draft exists — create a fresh SENT invoice (fallback path)
+    const dueDate = new Date(now);
+    dueDate.setDate(dueDate.getDate() + (so.customer?.creditTerms ?? 30));
+    const count = await prisma.invoice.count({ where: { companyId } });
+    invoiceNumber = `INV-${String(count + 1).padStart(6, '0')}`;
+
+    invoice = await prisma.invoice.create({
+      data: {
+        companyId,
+        customerId: so.customerId,
+        salesOrderId: so.id,
+        invoiceNumber,
+        dueDate,
+        currencyCode: so.currencyCode,
+        subtotal: so.subtotal,
+        discountAmount: so.discountAmount,
+        taxAmount: so.taxAmount,
+        freightAmount: so.freightAmount,
+        totalAmount: so.totalAmount,
+        balanceDue: so.totalAmount,
+        terms: so.terms,
+        notes: so.notes,
+        status: 'SENT',
+        createdBy: userId,
+        updatedBy: userId,
+        lines: {
+          create: so.lines.map((l) => ({
+            salesOrderLineId: l.id,
+            lineNumber: l.lineNumber,
+            description: l.description,
+            uom: l.uom,
+            qty: l.qtyOrdered,
+            unitPrice: l.unitPrice,
+            discountPct: l.discountPct,
+            lineSubtotal: l.lineTotal,
+            lineTotal: l.lineTotal,
+          })),
+        },
       },
-    },
-  });
+    });
+  }
 
   // Post GL: DR Accounts Receivable (1100) / CR Sales Revenue (4000)
   const [arAcct, revAcct] = await Promise.all([

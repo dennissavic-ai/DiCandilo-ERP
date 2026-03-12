@@ -929,8 +929,10 @@ model WorkCenter {
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
-  workOrderLines WorkOrderLine[]
-  timeEntries    JobTimeEntry[]
+  workOrderLines   WorkOrderLine[]
+  timeEntries      JobTimeEntry[]
+  planEquipment    JobPlanEquipment[]
+  scheduleBlocks   ScheduleBlock[]
 
   @@unique([companyId, code])
 }
@@ -961,6 +963,7 @@ model WorkOrder {
   lines           WorkOrderLine[]
   glTransactions  GLTransaction[]
   timeEntries     JobTimeEntry[]
+  jobPlan         JobPlan?
 
   @@unique([companyId, workOrderNumber])
   @@index([status])
@@ -1002,6 +1005,97 @@ model WorkOrderLine {
   salesOrderLine   SalesOrderLine? @relation(fields: [salesOrderLineId], references: [id])
   product          Product?       @relation(fields: [productId], references: [id])
   workCenter       WorkCenter?    @relation(fields: [workCenterId], references: [id])
+}
+
+// ─── OPERATIONS PLANNING ──────────────────────────────────────────────────────
+
+model JobPlan {
+  id          String        @id @default(uuid())
+  companyId   String
+  workOrderId String        @unique
+  status      JobPlanStatus @default(DRAFT)
+  notes       String?
+  createdBy   String?
+  updatedBy   String?
+  deletedAt   DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  workOrder      WorkOrder          @relation(fields: [workOrderId], references: [id])
+  roles          JobPlanRole[]
+  equipment      JobPlanEquipment[]
+  tasks          JobPlanTask[]
+  scheduleBlocks ScheduleBlock[]
+
+  @@index([companyId])
+}
+
+enum JobPlanStatus {
+  DRAFT
+  READY
+  SCHEDULED
+}
+
+model JobPlanRole {
+  id             String   @id @default(uuid())
+  jobPlanId      String
+  roleName       String
+  estimatedHours Decimal  @default(0) @db.Decimal(8, 2)
+  assignedUserId String?
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  jobPlan JobPlan @relation(fields: [jobPlanId], references: [id], onDelete: Cascade)
+}
+
+model JobPlanEquipment {
+  id               String   @id @default(uuid())
+  jobPlanId        String
+  workCenterId     String
+  estimatedMinutes Int      @default(0)
+  sequenceOrder    Int      @default(0)
+  notes            String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  jobPlan    JobPlan    @relation(fields: [jobPlanId], references: [id], onDelete: Cascade)
+  workCenter WorkCenter @relation(fields: [workCenterId], references: [id])
+}
+
+model JobPlanTask {
+  id          String    @id @default(uuid())
+  jobPlanId   String
+  title       String
+  description String?
+  isComplete  Boolean   @default(false)
+  completedAt DateTime?
+  completedBy String?
+  sortOrder   Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  jobPlan JobPlan @relation(fields: [jobPlanId], references: [id], onDelete: Cascade)
+}
+
+model ScheduleBlock {
+  id           String     @id @default(uuid())
+  companyId    String
+  jobPlanId    String
+  workCenterId String
+  startAt      DateTime
+  endAt        DateTime
+  isConfirmed  Boolean    @default(false)
+  aiGenerated  Boolean    @default(false)
+  notes        String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  jobPlan    JobPlan    @relation(fields: [jobPlanId], references: [id], onDelete: Cascade)
+  workCenter WorkCenter @relation(fields: [workCenterId], references: [id])
+
+  @@index([companyId])
+  @@index([workCenterId, startAt, endAt])
 }
 
 // ─── NESTING ─────────────────────────────────────────────────────────────────
@@ -1751,6 +1845,57 @@ model CashFlowEntry {
   createdBy   String?
 
   @@index([companyId, entryDate])
+}
+
+// ─── VALUE STREAM MAP ─────────────────────────────────────────────────────────
+
+/// A named Value Stream Map owned by a company. Contains an ordered list of VSMNodes
+/// representing each step in the business workflow from supplier to customer.
+model ValueStreamMap {
+  id          String    @id @default(uuid())
+  companyId   String
+  name        String
+  description String?
+  nodes       VSMNode[]
+  deletedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdBy   String?
+  updatedBy   String?
+
+  @@index([companyId])
+}
+
+/// A single step (node) in a Value Stream Map.
+/// position = left-to-right display order (0-based, re-sequenced on reorder).
+model VSMNode {
+  id             String          @id @default(uuid())
+  mapId          String
+  type           VSMNodeType     @default(PROCESS)
+  label          String
+  position       Int
+  cycleTimeSec   Int?            // seconds to complete one unit
+  changeOverSec  Int?            // changeover / setup seconds
+  uptimePct      Float?          // machine uptime 0–100
+  operatorCount  Int?
+  batchSize      Int?
+  waitTimeSec    Int?            // queue/wait time BEFORE this node (seconds)
+  promotedFromId String?         // workCenterId when auto-promoted from work centers
+  notes          String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  map            ValueStreamMap  @relation(fields: [mapId], references: [id], onDelete: Cascade)
+
+  @@index([mapId])
+}
+
+enum VSMNodeType {
+  SUPPLIER
+  PROCESS
+  INVENTORY
+  SHIPPING
+  CUSTOMER
 }
 
 // ─── DOCUMENT ATTACHMENTS ─────────────────────────────────────────────────────

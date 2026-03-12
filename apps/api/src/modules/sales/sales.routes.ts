@@ -11,6 +11,58 @@ import { InventoryService } from '../inventory/inventory.service';
 
 const inventoryService = new InventoryService();
 
+/**
+ * Create a DRAFT invoice linked to the sales order so the expected payment
+ * appears in AR cashflow projections immediately.  No GL entries are posted
+ * yet — those fire when the shipment is confirmed.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function createDraftInvoiceForOrder(so: any, companyId: string, userId: string) {
+  const now = new Date();
+  const dueDate = new Date(now);
+  dueDate.setDate(dueDate.getDate() + (so.customer?.creditTerms ?? 30));
+
+  const count = await prisma.invoice.count({ where: { companyId } });
+  const invoiceNumber = `INV-${String(count + 1).padStart(6, '0')}`;
+
+  await prisma.invoice.create({
+    data: {
+      companyId,
+      customerId: so.customerId,
+      salesOrderId: so.id,
+      invoiceNumber,
+      status: 'DRAFT',
+      invoiceDate: now,
+      dueDate,
+      currencyCode: so.currencyCode,
+      subtotal: so.subtotal,
+      discountAmount: so.discountAmount,
+      taxAmount: so.taxAmount,
+      freightAmount: so.freightAmount,
+      totalAmount: so.totalAmount,
+      balanceDue: so.totalAmount,
+      terms: so.terms,
+      notes: so.notes,
+      createdBy: userId,
+      updatedBy: userId,
+      lines: {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        create: so.lines.map((l: any) => ({
+          salesOrderLineId: l.id,
+          lineNumber: l.lineNumber,
+          description: l.description,
+          uom: l.uom,
+          qty: l.qtyOrdered,
+          unitPrice: l.unitPrice,
+          discountPct: l.discountPct,
+          lineSubtotal: l.lineTotal,
+          lineTotal: l.lineTotal,
+        })),
+      },
+    },
+  });
+}
+
 async function sendOrderStatusEmail(orderId: string, companyId: string): Promise<void> {
   try {
     const order = await prisma.salesOrder.findFirst({
@@ -481,6 +533,12 @@ export const salesRoutes: FastifyPluginAsync = async (fastify) => {
         include: { lines: true, customer: true },
       });
       await writeAuditLog(request, 'CREATE', 'SalesOrder', so.id, null, { orderNumber });
+
+      // Auto-create a DRAFT invoice so the expected payment date is visible in cashflow
+      createDraftInvoiceForOrder(so, companyId, sub).catch((err) =>
+        fastify.log.error({ err, salesOrderId: so.id }, 'Failed to create draft invoice for sales order'),
+      );
+
       return reply.status(201).send(so);
     } catch (err) { return handleError(reply, err); }
   });
