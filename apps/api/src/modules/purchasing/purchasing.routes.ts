@@ -140,7 +140,16 @@ export const purchasingRoutes: FastifyPluginAsync = async (fastify) => {
         notes: z.string().optional(),
         isActive: z.boolean().optional(),
       }).parse(request.body);
-      const updated = await prisma.supplier.update({ where: { id }, data: { ...updateBody, updatedBy: sub } });
+      const { billingAddress, contacts, ...rest } = updateBody;
+      const updated = await prisma.supplier.update({
+        where: { id },
+        data: {
+          ...rest,
+          ...(billingAddress !== undefined && { billingAddress: billingAddress as any }),
+          ...(contacts !== undefined && { contacts: contacts as any }),
+          updatedBy: sub,
+        },
+      });
       await writeAuditLog(request, 'UPDATE', 'Supplier', id, null, updateBody);
       return updated;
     } catch (err) { return handleError(reply, err); }

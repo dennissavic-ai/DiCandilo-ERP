@@ -397,8 +397,8 @@ export const reportingRoutes: FastifyPluginAsync = async (fastify) => {
         salesCountThisMonth,
         salesCountPrevMonth,
 
-        // Work orders ready for dispatch
-        readyToShipWOs,
+        // Sales orders ready for dispatch
+        readyToShipOrders,
 
         // Work center utilisation — time entries this month
         workCenters,
@@ -459,12 +459,10 @@ export const reportingRoutes: FastifyPluginAsync = async (fastify) => {
           _count: { id: true },
         }),
 
-        // Work orders ready for dispatch (READY_TO_SHIP status)
-        prisma.workOrder.findMany({
+        // Sales orders ready for dispatch (READY_TO_SHIP status) with their work orders
+        prisma.salesOrder.findMany({
           where: { companyId, status: 'READY_TO_SHIP', deletedAt: null },
-          include: {
-            salesOrder: { select: { totalAmount: true, orderNumber: true, customer: { select: { name: true } } } },
-          },
+          select: { id: true, orderNumber: true, totalAmount: true, customer: { select: { name: true } } },
         }),
 
         // All active work centers
@@ -602,8 +600,8 @@ export const reportingRoutes: FastifyPluginAsync = async (fastify) => {
       const avgOrderValue = salesThisMonth > 0 ? Math.round(Number(salesCountThisMonth._sum.totalAmount ?? 0) / salesThisMonth) : 0;
 
       // ── Dispatch ready value ─────────────────────────────────────────
-      const dispatchReadyValue = readyToShipWOs.reduce((sum, wo) => sum + Number(wo.salesOrder?.totalAmount ?? 0), 0);
-      const dispatchReadyCount = readyToShipWOs.length;
+      const dispatchReadyValue = readyToShipOrders.reduce((sum, so) => sum + Number(so.totalAmount ?? 0), 0);
+      const dispatchReadyCount = readyToShipOrders.length;
 
       // ── Gross margin ─────────────────────────────────────────────────
       const totalRevenue = revThisMonth;
@@ -650,11 +648,10 @@ export const reportingRoutes: FastifyPluginAsync = async (fastify) => {
         dispatchReady: {
           count: dispatchReadyCount,
           value: dispatchReadyValue,
-          orders: readyToShipWOs.slice(0, 10).map((wo) => ({
-            workOrderNumber: wo.workOrderNumber,
-            orderNumber: wo.salesOrder?.orderNumber,
-            customer: wo.salesOrder?.customer?.name,
-            value: Number(wo.salesOrder?.totalAmount ?? 0),
+          orders: readyToShipOrders.slice(0, 10).map((so) => ({
+            orderNumber: so.orderNumber,
+            customer: so.customer?.name,
+            value: Number(so.totalAmount ?? 0),
           })),
         },
         machineUtilisation: {
