@@ -24,18 +24,16 @@ interface NavItem {
 
 const NAV_LEADERSHIP: NavItem[] = [
   { label: 'Dashboard', to: '/', icon: Gauge, end: true },
-  {
-    label: 'Accounting', icon: DollarSign,
-    children: [
-      { label: 'Dashboard',         to: '/accounting/dashboard',         icon: Activity },
-      { label: 'Invoices',          to: '/accounting/invoices',          icon: FileText },
-      { label: 'Cash Flow',         to: '/accounting/cashflow',          icon: TrendingUp },
-      { label: 'AR Ageing',         to: '/accounting/ar-ageing',         icon: BarChart3 },
-      { label: 'Chart of Accounts', to: '/accounting/chart-of-accounts', icon: BookOpen },
-    ],
-  },
   { label: 'Value Stream Map', to: '/leadership/value-stream-map', icon: GitFork },
   { label: 'Users', to: '/admin/users', icon: Users },
+];
+
+const NAV_FINANCE: NavItem[] = [
+  { label: 'Dashboard',         to: '/accounting/dashboard',         icon: Activity },
+  { label: 'Invoices',          to: '/accounting/invoices',          icon: FileText },
+  { label: 'Cash Flow',         to: '/accounting/cashflow',          icon: TrendingUp },
+  { label: 'AR Ageing',         to: '/accounting/ar-ageing',         icon: BarChart3 },
+  { label: 'Chart of Accounts', to: '/accounting/chart-of-accounts', icon: BookOpen },
 ];
 
 const NAV_GROWTH: NavItem[] = [
@@ -207,6 +205,9 @@ export function Sidebar() {
       <nav className="flex-1 overflow-y-auto py-2 px-2 space-y-px">
         <SectionLabel label="Leadership" />
         {renderItems(NAV_LEADERSHIP)}
+
+        <SectionLabel label="Finance" />
+        {renderItems(NAV_FINANCE)}
 
         <SectionLabel label="Growth" />
         {renderItems(NAV_GROWTH)}
