@@ -459,6 +459,179 @@ Describe what the future state VSM should look like — which steps to combine, 
 
     reply.raw.end();
   });
+
+  // ── POST /vsm/seed-examples — load 5 steel industry VSM examples ───────────
+  fastify.post('/seed-examples', async (request, reply) => {
+    const user = (request as any).user;
+    const companyId = user.companyId;
+
+    // Helper: encode (x,y) position + extra metrics into the notes field
+    function mkNotes(x: number, y: number, extras: string[]): string {
+      const prefix = `{"_x":${x},"_y":${y}}`;
+      const tail = extras.join(' · ');
+      return tail ? `${prefix} ${tail}` : prefix;
+    }
+
+    type N = {
+      type: 'SUPPLIER' | 'PROCESS' | 'INVENTORY' | 'SHIPPING' | 'CUSTOMER';
+      label: string;
+      position: number;
+      cycleTimeSec: number | null;
+      changeOverSec: number | null;
+      uptimePct: number | null;
+      operatorCount: number | null;
+      batchSize: number | null;
+      waitTimeSec: number | null;
+      notes: string;
+    };
+
+    interface ExampleMap {
+      name: string;
+      description: string;
+      nodes: N[];
+    }
+
+    const Y_EXT = 40;   // y for external (supplier/customer) nodes
+    const Y_PROC = 180;  // y for process nodes
+    const Y_INV = 340;   // y for inventory nodes
+    const X_GAP = 260;   // horizontal spacing
+
+    const examples: ExampleMap[] = [
+      // ─── VSM 1: Order to Delivery ─────────────────────────────────────────
+      {
+        name: 'Order to Delivery',
+        description: 'Customer order fulfilment end-to-end',
+        nodes: [
+          { type: 'CUSTOMER', label: 'Customer', position: 0, cycleTimeSec: null, changeOverSec: null, uptimePct: null, operatorCount: null, batchSize: null, waitTimeSec: null, notes: mkNotes(60, Y_EXT, ['Demand: 120t/wk', 'Orders: Daily EDI']) },
+          { type: 'PROCESS', label: 'Sales & Order Entry', position: 1, cycleTimeSec: 2700, changeOverSec: null, uptimePct: 99, operatorCount: 1, batchSize: null, waitTimeSec: null, notes: mkNotes(60 + X_GAP, Y_PROC, ['Shifts: 1']) },
+          { type: 'PROCESS', label: 'AI Demand Planning', position: 2, cycleTimeSec: null, changeOverSec: null, uptimePct: null, operatorCount: null, batchSize: null, waitTimeSec: null, notes: mkNotes(60 + X_GAP * 2, Y_PROC, ['C/T: Auto', 'ML Model: v3.1', 'Accuracy: 94%', '🤖 AI']) },
+          { type: 'INVENTORY', label: 'Order Queue', position: 3, cycleTimeSec: null, changeOverSec: null, uptimePct: null, operatorCount: null, batchSize: null, waitTimeSec: 21600, notes: mkNotes(60 + X_GAP * 3, Y_INV, ['WIP: 42 orders']) },
+          { type: 'PROCESS', label: 'Warehouse Pick', position: 4, cycleTimeSec: 7560, changeOverSec: null, uptimePct: 91, operatorCount: 2, batchSize: null, waitTimeSec: null, notes: mkNotes(60 + X_GAP * 4, Y_PROC, ['Shifts: 2']) },
+          { type: 'INVENTORY', label: 'Stock Buffer', position: 5, cycleTimeSec: null, changeOverSec: null, uptimePct: null, operatorCount: null, batchSize: null, waitTimeSec: null, notes: mkNotes(60 + X_GAP * 5, Y_INV, ['Stock: 280t', 'Turns: 18x']) },
+          { type: 'PROCESS', label: 'QC & Cert Check', position: 6, cycleTimeSec: 2100, changeOverSec: null, uptimePct: null, operatorCount: null, batchSize: null, waitTimeSec: null, notes: mkNotes(60 + X_GAP * 6, Y_PROC, ['FPY: 98.2%', 'Digital cert']) },
+          { type: 'INVENTORY', label: 'Staging', position: 7, cycleTimeSec: null, changeOverSec: null, uptimePct: null, operatorCount: null, batchSize: null, waitTimeSec: 7200, notes: mkNotes(60 + X_GAP * 7, Y_INV, ['WIP: 8t']) },
+          { type: 'SHIPPING', label: 'Dispatch & 3PL', position: 8, cycleTimeSec: 5400, changeOverSec: null, uptimePct: null, operatorCount: null, batchSize: null, waitTimeSec: null, notes: mkNotes(60 + X_GAP * 8, Y_PROC, ['OTIF: 94%', 'API-linked 3PL']) },
+          { type: 'SUPPLIER', label: 'Mill Supplier', position: 9, cycleTimeSec: null, changeOverSec: null, uptimePct: null, operatorCount: null, batchSize: null, waitTimeSec: null, notes: mkNotes(60 + X_GAP * 4, Y_EXT - 120, ['Lead: 21 days', 'MOQ: 10t', 'EDI: Yes']) },
+        ],
+      },
+
+      // ─── VSM 2: Procurement & Replenishment ───────────────────────────────
+      {
+        name: 'Procurement & Replenishment',
+        description: 'Supplier relationship & stock optimisation',
+        nodes: [
+          { type: 'CUSTOMER', label: 'Demand Signal', position: 0, cycleTimeSec: null, changeOverSec: null, uptimePct: null, operatorCount: null, batchSize: null, waitTimeSec: null, notes: mkNotes(60, Y_EXT, ['AI forecast', '4-wk horizon', 'SKU: 1,240']) },
+          { type: 'PROCESS', label: 'MRP / ERP Engine', position: 1, cycleTimeSec: null, changeOverSec: null, uptimePct: null, operatorCount: null, batchSize: null, waitTimeSec: null, notes: mkNotes(60 + X_GAP, Y_PROC, ['Run: Real-time', 'Auto PO: 70%', 'Exception mgmt']) },
+          { type: 'PROCESS', label: 'PO Approval', position: 2, cycleTimeSec: 14400, changeOverSec: null, uptimePct: null, operatorCount: null, batchSize: null, waitTimeSec: null, notes: mkNotes(60 + X_GAP * 2, Y_PROC, ['Threshold: $10k', 'Digital sign-off']) },
+          { type: 'INVENTORY', label: 'Open PO Queue', position: 3, cycleTimeSec: null, changeOverSec: null, uptimePct: null, operatorCount: null, batchSize: null, waitTimeSec: null, notes: mkNotes(60 + X_GAP * 3, Y_INV, ['POs: 38', 'Value: $2.1M']) },
+          { type: 'PROCESS', label: 'Supplier Portal', position: 4, cycleTimeSec: null, changeOverSec: null, uptimePct: null, operatorCount: null, batchSize: null, waitTimeSec: null, notes: mkNotes(60 + X_GAP * 4, Y_PROC, ['Suppliers: 28', 'Portal: Live', 'Ack: <2 hrs']) },
+          { type: 'SUPPLIER', label: 'Steel Mills', position: 5, cycleTimeSec: null, changeOverSec: null, uptimePct: null, operatorCount: null, batchSize: null, waitTimeSec: null, notes: mkNotes(60 + X_GAP * 4, Y_EXT - 120, ['3 preferred', 'Mill cert API', 'Grade: AS/NZS']) },
+          { type: 'INVENTORY', label: 'In Transit', position: 6, cycleTimeSec: null, changeOverSec: null, uptimePct: null, operatorCount: null, batchSize: null, waitTimeSec: null, notes: mkNotes(60 + X_GAP * 5, Y_INV, ['Volume: 140t', 'Tracked: GPS']) },
+          { type: 'PROCESS', label: 'Goods Receiving', position: 7, cycleTimeSec: 12600, changeOverSec: null, uptimePct: null, operatorCount: null, batchSize: null, waitTimeSec: null, notes: mkNotes(60 + X_GAP * 6, Y_PROC, ['Digital GRN', 'QR scanning']) },
+          { type: 'INVENTORY', label: 'Receiving Bay', position: 8, cycleTimeSec: null, changeOverSec: null, uptimePct: null, operatorCount: null, batchSize: null, waitTimeSec: 21600, notes: mkNotes(60 + X_GAP * 7, Y_INV, ['WIP: 22t']) },
+          { type: 'PROCESS', label: 'WMS Put-away', position: 9, cycleTimeSec: 4320, changeOverSec: null, uptimePct: null, operatorCount: null, batchSize: null, waitTimeSec: null, notes: mkNotes(60 + X_GAP * 8, Y_PROC, ['WMS-guided', 'RFID tracked']) },
+        ],
+      },
+
+      // ─── VSM 3: Cut-to-Length Processing ──────────────────────────────────
+      {
+        name: 'Cut-to-Length Processing',
+        description: 'Value-add steel processing & transformation',
+        nodes: [
+          { type: 'CUSTOMER', label: 'Sales Order', position: 0, cycleTimeSec: null, changeOverSec: null, uptimePct: null, operatorCount: null, batchSize: null, waitTimeSec: null, notes: mkNotes(60, Y_EXT, ['Spec: DXF/PDF', 'Custom: 63%', 'Urgent: 18%']) },
+          { type: 'PROCESS', label: 'AI Nesting Software', position: 1, cycleTimeSec: 480, changeOverSec: null, uptimePct: null, operatorCount: null, batchSize: null, waitTimeSec: null, notes: mkNotes(60 + X_GAP, Y_PROC, ['Yield: 94.2%', 'Auto-optimised', '🤖 AI']) },
+          { type: 'INVENTORY', label: 'Job Queue', position: 2, cycleTimeSec: null, changeOverSec: null, uptimePct: null, operatorCount: null, batchSize: null, waitTimeSec: 2700, notes: mkNotes(60 + X_GAP * 2, Y_INV, ['Jobs: 14']) },
+          { type: 'PROCESS', label: 'Material Issue', position: 3, cycleTimeSec: 1500, changeOverSec: null, uptimePct: null, operatorCount: null, batchSize: null, waitTimeSec: null, notes: mkNotes(60 + X_GAP * 3, Y_PROC, ['WMS pick', 'Bar code scan']) },
+          { type: 'SUPPLIER', label: 'Raw Stock', position: 4, cycleTimeSec: null, changeOverSec: null, uptimePct: null, operatorCount: null, batchSize: null, waitTimeSec: null, notes: mkNotes(60 + X_GAP * 3, Y_EXT - 120, ['Plate/coil/bar', 'RFID tagged', 'WMS location']) },
+          { type: 'PROCESS', label: 'Plasma/Laser Cut', position: 5, cycleTimeSec: 2700, changeOverSec: null, uptimePct: 81, operatorCount: 2, batchSize: null, waitTimeSec: null, notes: mkNotes(60 + X_GAP * 4, Y_PROC, ['OEE: 81%', '2 machines']) },
+          { type: 'INVENTORY', label: 'Cut WIP', position: 6, cycleTimeSec: null, changeOverSec: null, uptimePct: null, operatorCount: null, batchSize: null, waitTimeSec: 1800, notes: mkNotes(60 + X_GAP * 5, Y_INV, ['WIP: 4t']) },
+          { type: 'PROCESS', label: 'Deburr & Finish', position: 7, cycleTimeSec: 1200, changeOverSec: null, uptimePct: null, operatorCount: null, batchSize: null, waitTimeSec: null, notes: mkNotes(60 + X_GAP * 6, Y_PROC, ['Auto: 60%', 'FPY: 97%']) },
+          { type: 'INVENTORY', label: 'Finish Hold', position: 8, cycleTimeSec: null, changeOverSec: null, uptimePct: null, operatorCount: null, batchSize: null, waitTimeSec: 1200, notes: mkNotes(60 + X_GAP * 7, Y_INV, ['WIP: 1.8t']) },
+          { type: 'PROCESS', label: 'Pack & Label', position: 9, cycleTimeSec: 900, changeOverSec: null, uptimePct: null, operatorCount: null, batchSize: null, waitTimeSec: null, notes: mkNotes(60 + X_GAP * 8, Y_PROC, ['QR cert label', 'Spec verified']) },
+        ],
+      },
+
+      // ─── VSM 4: Quote to Cash ─────────────────────────────────────────────
+      {
+        name: 'Quote to Cash',
+        description: 'Commercial cycle from inquiry to payment',
+        nodes: [
+          { type: 'CUSTOMER', label: 'Customer Inquiry', position: 0, cycleTimeSec: null, changeOverSec: null, uptimePct: null, operatorCount: null, batchSize: null, waitTimeSec: null, notes: mkNotes(60, Y_EXT, ['Channel: Web/Phone', 'Volume: 65/day', 'Avg: $12k']) },
+          { type: 'PROCESS', label: 'AI Quote Engine', position: 1, cycleTimeSec: 720, changeOverSec: null, uptimePct: null, operatorCount: null, batchSize: null, waitTimeSec: null, notes: mkNotes(60 + X_GAP, Y_PROC, ['Auto: 78%', 'Accuracy: 96%', '🤖 AI']) },
+          { type: 'INVENTORY', label: 'Quote Queue', position: 2, cycleTimeSec: null, changeOverSec: null, uptimePct: null, operatorCount: null, batchSize: null, waitTimeSec: null, notes: mkNotes(60 + X_GAP * 2, Y_INV, ['Open: 28', 'Avg age: 1.8d']) },
+          { type: 'PROCESS', label: 'Quote Approval', position: 3, cycleTimeSec: 7200, changeOverSec: null, uptimePct: null, operatorCount: null, batchSize: null, waitTimeSec: null, notes: mkNotes(60 + X_GAP * 3, Y_PROC, ['Threshold: $50k', 'Digital workflow']) },
+          { type: 'PROCESS', label: 'Order Confirmation', position: 4, cycleTimeSec: 1800, changeOverSec: null, uptimePct: null, operatorCount: null, batchSize: null, waitTimeSec: null, notes: mkNotes(60 + X_GAP * 4, Y_PROC, ['ERP auto-create', 'CRM linked']) },
+          { type: 'INVENTORY', label: 'Order Backlog', position: 5, cycleTimeSec: null, changeOverSec: null, uptimePct: null, operatorCount: null, batchSize: null, waitTimeSec: null, notes: mkNotes(60 + X_GAP * 5, Y_INV, ['Orders: 142', 'Value: $1.8M']) },
+          { type: 'PROCESS', label: 'Auto Invoicing', position: 6, cycleTimeSec: 300, changeOverSec: null, uptimePct: null, operatorCount: null, batchSize: null, waitTimeSec: null, notes: mkNotes(60 + X_GAP * 6, Y_PROC, ['eInvoice: 91%', 'PEPPOL ready']) },
+          { type: 'INVENTORY', label: 'Invoice Queue', position: 7, cycleTimeSec: null, changeOverSec: null, uptimePct: null, operatorCount: null, batchSize: null, waitTimeSec: null, notes: mkNotes(60 + X_GAP * 7, Y_INV, ['Pending: 18', 'Value: $340k']) },
+          { type: 'PROCESS', label: 'AR & Collections', position: 8, cycleTimeSec: null, changeOverSec: null, uptimePct: null, operatorCount: null, batchSize: null, waitTimeSec: null, notes: mkNotes(60 + X_GAP * 8, Y_PROC, ['DSO: 34 days', 'Auto chase: On', 'Portal: Live']) },
+          { type: 'SUPPLIER', label: 'Market Pricing', position: 9, cycleTimeSec: null, changeOverSec: null, uptimePct: null, operatorCount: null, batchSize: null, waitTimeSec: null, notes: mkNotes(60 + X_GAP, Y_EXT - 120, ['LME feed: Live', 'Margin model', 'Competitor intel']) },
+        ],
+      },
+
+      // ─── VSM 5: Returns & Non-Conformance ─────────────────────────────────
+      {
+        name: 'Returns & Non-Conformance',
+        description: 'Quality loop, RMA and corrective action',
+        nodes: [
+          { type: 'CUSTOMER', label: 'Customer Return', position: 0, cycleTimeSec: null, changeOverSec: null, uptimePct: null, operatorCount: null, batchSize: null, waitTimeSec: null, notes: mkNotes(60, Y_EXT, ['Rate: 1.4%', 'Digital RMA', 'Photo upload']) },
+          { type: 'PROCESS', label: 'RMA Processing', position: 1, cycleTimeSec: 3600, changeOverSec: null, uptimePct: null, operatorCount: null, batchSize: null, waitTimeSec: null, notes: mkNotes(60 + X_GAP, Y_PROC, ['Auto-classify', 'Root cause tag']) },
+          { type: 'INVENTORY', label: 'Returned Goods', position: 2, cycleTimeSec: null, changeOverSec: null, uptimePct: null, operatorCount: null, batchSize: null, waitTimeSec: null, notes: mkNotes(60 + X_GAP * 2, Y_INV, ['WIP: 6t', 'Quarantine bay']) },
+          { type: 'PROCESS', label: 'QC Inspection', position: 3, cycleTimeSec: 9000, changeOverSec: null, uptimePct: null, operatorCount: null, batchSize: null, waitTimeSec: null, notes: mkNotes(60 + X_GAP * 3, Y_PROC, ['Digital report', 'Photo evidence']) },
+          { type: 'INVENTORY', label: 'Awaiting Decision', position: 4, cycleTimeSec: null, changeOverSec: null, uptimePct: null, operatorCount: null, batchSize: null, waitTimeSec: 120960, notes: mkNotes(60 + X_GAP * 4, Y_INV, ['Hold: 3.2t']) },
+          { type: 'PROCESS', label: 'Disposition Decision', position: 5, cycleTimeSec: null, changeOverSec: null, uptimePct: null, operatorCount: null, batchSize: null, waitTimeSec: null, notes: mkNotes(60 + X_GAP * 5, Y_PROC, ['Restock: 42%', 'Rework: 31%', 'Scrap: 27%']) },
+          { type: 'PROCESS', label: 'CAPA Workflow', position: 6, cycleTimeSec: 259200, changeOverSec: null, uptimePct: null, operatorCount: null, batchSize: null, waitTimeSec: null, notes: mkNotes(60 + X_GAP * 6, Y_PROC, ['Closed: 89%', '8D format']) },
+          { type: 'INVENTORY', label: 'CAPA Open Items', position: 7, cycleTimeSec: null, changeOverSec: null, uptimePct: null, operatorCount: null, batchSize: null, waitTimeSec: null, notes: mkNotes(60 + X_GAP * 7, Y_INV, ['Items: 12', 'Overdue: 2']) },
+          { type: 'PROCESS', label: 'Credit / Resolution', position: 8, cycleTimeSec: 14400, changeOverSec: null, uptimePct: null, operatorCount: null, batchSize: null, waitTimeSec: null, notes: mkNotes(60 + X_GAP * 8, Y_PROC, ['Auto credit: 65%', 'NPS tracked']) },
+          { type: 'SUPPLIER', label: 'Supplier NCR', position: 9, cycleTimeSec: null, changeOverSec: null, uptimePct: null, operatorCount: null, batchSize: null, waitTimeSec: null, notes: mkNotes(60 + X_GAP * 6, Y_EXT - 120, ['Rate: 0.8%', 'Scorecard live', 'Penalty clause']) },
+        ],
+      },
+    ];
+
+    // Create all 5 maps with their nodes in a transaction
+    const created = await (prisma as any).$transaction(async (tx: any) => {
+      const results = [];
+      for (const ex of examples) {
+        const map = await tx.valueStreamMap.create({
+          data: {
+            companyId,
+            name: ex.name,
+            description: ex.description,
+            createdBy: user.sub,
+            updatedAt: new Date(),
+          },
+        });
+        const nodeData = ex.nodes.map((n) => ({
+          mapId: map.id,
+          type: n.type,
+          label: n.label,
+          position: n.position,
+          cycleTimeSec: n.cycleTimeSec,
+          changeOverSec: n.changeOverSec,
+          uptimePct: n.uptimePct,
+          operatorCount: n.operatorCount,
+          batchSize: n.batchSize,
+          waitTimeSec: n.waitTimeSec,
+          notes: n.notes,
+          updatedAt: new Date(),
+        }));
+        await tx.vSMNode.createMany({ data: nodeData });
+        const full = await tx.valueStreamMap.findFirst({
+          where: { id: map.id },
+          include: { nodes: { orderBy: { position: 'asc' } } },
+        });
+        results.push(full);
+      }
+      return results;
+    });
+
+    // Emit update event for each new map
+    for (const map of created) {
+      emitToCompany(companyId, 'VSM_UPDATE', { mapId: map.id, action: 'MAP_CREATED', map });
+    }
+
+    return reply.status(201).send(created);
+  });
 };
 
 export default valuestream;

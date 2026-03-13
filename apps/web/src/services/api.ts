@@ -327,6 +327,7 @@ export const vsmApi = {
   reorderNodes:(id: string, nodeIds: string[]) => api.put(`/vsm/${id}/nodes/reorder`, { nodeIds }),
   promote:     (id: string)     => api.post(`/vsm/${id}/promote`),
   analyzeMap:  (id: string)     => api.post(`/vsm/${id}/analyze`),
+  seedExamples:()               => api.post('/vsm/seed-examples'),
 };
 
 // Automation

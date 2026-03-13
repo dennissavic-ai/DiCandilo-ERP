@@ -959,6 +959,15 @@ export function ValueStreamMapPage() {
     onError: (err: any) => setPromoteError(err?.response?.data?.error ?? 'Promotion failed.'),
   });
 
+  const seedExamples = useMutation({
+    mutationFn: () => vsmApi.seedExamples(),
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ['vsm-maps'] });
+      const first = (res.data as any[])?.[0];
+      if (first?.id) setSelectedMapId(first.id);
+    },
+  });
+
   // ── Derived ───────────────────────────────────────────────────────────────
 
   const nodes: VSMNode[] = activeMap?.nodes ?? [];
@@ -1023,7 +1032,17 @@ export function ValueStreamMapPage() {
         <nav className="flex-1 overflow-y-auto py-1">
           {mapsLoading && <p className="text-xs text-muted-foreground px-4 py-3 animate-pulse">Loading…</p>}
           {!mapsLoading && maps.length === 0 && (
-            <p className="text-xs text-muted-foreground px-4 py-4">No maps yet. Click <strong>+</strong> to create one.</p>
+            <div className="px-4 py-4 space-y-3">
+              <p className="text-xs text-muted-foreground">No maps yet. Click <strong>+</strong> to create one.</p>
+              <button
+                onClick={() => seedExamples.mutate()}
+                disabled={seedExamples.isPending}
+                className="w-full text-xs px-3 py-2 rounded-lg border border-dashed border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors flex items-center justify-center gap-1.5"
+              >
+                <Sparkles size={11} />
+                {seedExamples.isPending ? 'Loading…' : 'Load Steel Examples'}
+              </button>
+            </div>
           )}
           {maps.map((m) => (
             <button key={m.id}
@@ -1043,12 +1062,24 @@ export function ValueStreamMapPage() {
       {/* Main area */}
       <main className="flex-1 flex overflow-hidden min-w-0">
         {!selectedMapId ? (
-          <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground gap-3">
+          <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground gap-4">
             <GitFork size={40} className="opacity-20" />
             <p className="text-sm">Select a map or create a new one.</p>
-            <button onClick={() => setShowNewMapForm(true)} className="btn-primary text-sm px-4 py-2 flex items-center gap-2">
-              <Plus size={14} /> New Map
-            </button>
+            <div className="flex items-center gap-3">
+              <button onClick={() => setShowNewMapForm(true)} className="btn-primary text-sm px-4 py-2 flex items-center gap-2">
+                <Plus size={14} /> New Map
+              </button>
+              {maps.length === 0 && (
+                <button
+                  onClick={() => seedExamples.mutate()}
+                  disabled={seedExamples.isPending}
+                  className="text-sm px-4 py-2 rounded-lg border border-dashed border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors flex items-center gap-2"
+                >
+                  <Sparkles size={14} />
+                  {seedExamples.isPending ? 'Loading…' : 'Load Steel Examples'}
+                </button>
+              )}
+            </div>
           </div>
         ) : (
           <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
