@@ -313,7 +313,7 @@ function GanttChart({
                           )}
                         </div>
                         {block.aiGenerated && (
-                          <Sparkles size={10} className="shrink-0 text-purple-500" title="AI scheduled" />
+                          <span title="AI scheduled"><Sparkles size={10} className="shrink-0 text-purple-500" /></span>
                         )}
                         {/* Delete button on hover */}
                         <button
