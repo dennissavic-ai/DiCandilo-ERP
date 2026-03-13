@@ -64,46 +64,94 @@ async function main() {
     },
   });
 
-  await prisma.role.upsert({
-    where: { name: 'Sales' },
-    update: {},
-    create: {
-      name: 'Sales',
-      description: 'Sales team — quotes, orders, customers',
-      permissions: {
-        create: ['sales:view', 'sales:create', 'sales:edit', 'inventory:view', 'reporting:view', 'tasks:view', 'tasks:create']
-          .map((k) => ({ permissionId: permissionMap[k] })).filter((p) => p.permissionId),
-      },
+  const roleDefinitions: Array<{ name: string; description: string; perms: string[] }> = [
+    {
+      name: 'Leadership',
+      description: 'Executive oversight — full read access, reporting, and approvals',
+      perms: [
+        'inventory:view', 'purchasing:view', 'sales:view', 'processing:view',
+        'accounting:view', 'reporting:view', 'users:view', 'shipping:view', 'tasks:view',
+        'sales:approve', 'purchasing:approve', 'accounting:approve',
+      ],
     },
-  });
-
-  await prisma.role.upsert({
-    where: { name: 'Warehouse' },
-    update: {},
-    create: {
-      name: 'Warehouse',
-      description: 'Warehouse operations — inventory, receiving, shipping',
-      permissions: {
-        create: ['inventory:view', 'inventory:create', 'inventory:edit', 'shipping:view', 'shipping:create', 'purchasing:view']
-          .map((k) => ({ permissionId: permissionMap[k] })).filter((p) => p.permissionId),
-      },
+    {
+      name: 'Finance',
+      description: 'Finance & accounting — invoices, payments, AR/AP, reports',
+      perms: [
+        'accounting:view', 'accounting:create', 'accounting:edit', 'accounting:approve',
+        'reporting:view', 'sales:view', 'purchasing:view', 'inventory:view',
+      ],
     },
-  });
-
-  await prisma.role.upsert({
-    where: { name: 'Accounting' },
-    update: {},
-    create: {
-      name: 'Accounting',
-      description: 'Accounting team — invoices, payments, reports',
-      permissions: {
-        create: ['accounting:view', 'accounting:create', 'accounting:edit', 'reporting:view', 'sales:view', 'purchasing:view']
-          .map((k) => ({ permissionId: permissionMap[k] })).filter((p) => p.permissionId),
-      },
+    {
+      name: 'Marketing/Sales',
+      description: 'Sales & marketing — CRM, quotes, orders, customers, pricing',
+      perms: [
+        'sales:view', 'sales:create', 'sales:edit',
+        'inventory:view', 'reporting:view', 'tasks:view', 'tasks:create',
+      ],
     },
-  });
+    {
+      name: 'Operator',
+      description: 'Shop floor — work orders, time tracking, barcode scanning',
+      perms: [
+        'processing:view', 'processing:create', 'processing:edit',
+        'inventory:view', 'shipping:view', 'tasks:view', 'tasks:create',
+      ],
+    },
+    {
+      name: 'Parts Manager',
+      description: 'Inventory & purchasing — stock management, purchasing, receiving',
+      perms: [
+        'inventory:view', 'inventory:create', 'inventory:edit', 'inventory:approve',
+        'purchasing:view', 'purchasing:create', 'purchasing:edit',
+        'shipping:view', 'shipping:create', 'reporting:view',
+      ],
+    },
+    {
+      name: 'Planner',
+      description: 'Production planning — scheduling, work orders, capacity planning',
+      perms: [
+        'processing:view', 'processing:create', 'processing:edit', 'processing:approve',
+        'inventory:view', 'sales:view', 'purchasing:view', 'reporting:view',
+        'tasks:view', 'tasks:create', 'tasks:edit',
+      ],
+    },
+    {
+      name: 'Dispatch',
+      description: 'Shipping & logistics — dispatch, freight, delivery management',
+      perms: [
+        'shipping:view', 'shipping:create', 'shipping:edit',
+        'inventory:view', 'sales:view', 'processing:view', 'tasks:view',
+      ],
+    },
+    {
+      name: 'Developer',
+      description: 'ERP system owner — full system access including configuration',
+      perms: Object.keys(permissionMap), // all permissions
+    },
+  ];
 
-  console.log('✔ Roles seeded: Admin, Sales, Warehouse, Accounting');
+  const roleMap: Record<string, string> = {};
+  roleMap['Admin'] = adminRole.id;
+
+  for (const roleDef of roleDefinitions) {
+    const role = await prisma.role.upsert({
+      where: { name: roleDef.name },
+      update: {},
+      create: {
+        name: roleDef.name,
+        description: roleDef.description,
+        permissions: {
+          create: roleDef.perms
+            .map((k) => ({ permissionId: permissionMap[k] }))
+            .filter((p) => p.permissionId),
+        },
+      },
+    });
+    roleMap[roleDef.name] = role.id;
+  }
+
+  console.log('✔ Roles seeded:', ['Admin', ...roleDefinitions.map((r) => r.name)].join(', '));
 
   // ── Admin user ────────────────────────────────────────────────────────────
   const adminUser = await prisma.user.upsert({
@@ -121,6 +169,39 @@ async function main() {
     },
   });
   console.log('✔ Admin user created: admin@dicandilo.com / Admin@12345');
+
+  // ── Demo users (one per role) ──────────────────────────────────────────────
+  const demoUsers: Array<{ email: string; firstName: string; lastName: string; role: string }> = [
+    { email: 'dennis@dicandilo.com',    firstName: 'Dennis',   lastName: 'Savic',      role: 'Leadership' },
+    { email: 'maria@dicandilo.com',     firstName: 'Maria',    lastName: 'Rossi',      role: 'Finance' },
+    { email: 'luke@dicandilo.com',      firstName: 'Luke',     lastName: 'Thompson',   role: 'Marketing/Sales' },
+    { email: 'tony@dicandilo.com',      firstName: 'Tony',     lastName: 'Martino',    role: 'Operator' },
+    { email: 'james@dicandilo.com',     firstName: 'James',    lastName: 'Chen',       role: 'Parts Manager' },
+    { email: 'sarah@dicandilo.com',     firstName: 'Sarah',    lastName: 'Williams',   role: 'Planner' },
+    { email: 'marco@dicandilo.com',     firstName: 'Marco',    lastName: 'Di Candilo', role: 'Dispatch' },
+    { email: 'dev@dicandilo.com',       firstName: 'Dev',      lastName: 'Support',    role: 'Developer' },
+  ];
+
+  const demoPasswordHash = await argon2.hash('Demo@12345');
+
+  for (const demo of demoUsers) {
+    await prisma.user.upsert({
+      where: { email: demo.email },
+      update: {},
+      create: {
+        companyId: company.id,
+        branchId: mainBranch.id,
+        roleId: roleMap[demo.role],
+        email: demo.email,
+        passwordHash: demoPasswordHash,
+        firstName: demo.firstName,
+        lastName: demo.lastName,
+        isActive: true,
+        requirePasswordChange: true,
+      },
+    });
+  }
+  console.log('✔ Demo users seeded:', demoUsers.length, 'users');
 
   // ── GL Accounts ───────────────────────────────────────────────────────────
   const glAccounts = [

@@ -24,7 +24,6 @@ interface NavItem {
 
 const NAV_LEADERSHIP: NavItem[] = [
   { label: 'Dashboard', to: '/', icon: Gauge, end: true },
-  { label: 'Value Stream Map', to: '/leadership/value-stream-map', icon: GitFork },
   { label: 'Users', to: '/admin/users', icon: Users },
 ];
 
@@ -90,6 +89,7 @@ const NAV_OPS: NavItem[] = [
       { label: 'Dispatch',      to: '/shipping',                 icon: Truck },
     ],
   },
+  { label: 'Value Stream Map', to: '/leadership/value-stream-map', icon: GitFork },
   { label: 'Scan Barcode', to: '/scan', icon: QrCode },
 ];
 
