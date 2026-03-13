@@ -198,6 +198,7 @@ export const accountingApi = {
 // Reporting
 export const reportingApi = {
   getDashboard: () => api.get('/reporting/dashboard'),
+  getKpis: () => api.get('/reporting/kpis'),
   getSalesReport: (params: object) => api.get('/reporting/sales', { params }),
   getInventoryReport: (params: object) => api.get('/reporting/inventory', { params }),
   getPurchasingReport: (params: object) => api.get('/reporting/purchasing', { params }),

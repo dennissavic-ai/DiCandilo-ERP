@@ -3,7 +3,8 @@ import { reportingApi } from '../services/api';
 import {
   TrendingUp, Package, AlertTriangle, ShoppingCart,
   DollarSign, Wrench, Clock, FileText, ArrowUpRight,
-  ArrowDownRight, Minus,
+  ArrowDownRight, Minus, Target, Hash, Truck, Gauge,
+  Percent, RotateCcw, ClipboardList,
 } from 'lucide-react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -123,6 +124,67 @@ function ChartTooltip({ active, payload, label }: any) {
   );
 }
 
+/* ── Gauge ring (SVG) ─────────────────────────────────────────────── */
+function GaugeRing({ pct, color, size = 56 }: { pct: number; color: string; size?: number }) {
+  const r = (size - 8) / 2;
+  const circ = 2 * Math.PI * r;
+  const offset = circ - (Math.min(pct, 100) / 100) * circ;
+  return (
+    <svg width={size} height={size} className="flex-shrink-0 -rotate-90">
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#f1f5f9" strokeWidth={6} />
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth={6}
+        strokeDasharray={circ} strokeDashoffset={offset} strokeLinecap="round"
+        className="transition-all duration-700" />
+    </svg>
+  );
+}
+
+/* ── KPI fundamental tile ────────────────────────────────────────── */
+interface FundamentalProps {
+  label: string;
+  value: string;
+  sub?: string;
+  trend?: 'up' | 'down' | 'flat';
+  trendValue?: string;
+  icon: React.ComponentType<{ size?: number | string; className?: string }>;
+  iconColor: string;
+  gauge?: { pct: number; color: string };
+  onClick?: () => void;
+}
+
+function FundamentalCard({ label, value, sub, trend, trendValue, icon: Icon, iconColor, gauge, onClick }: FundamentalProps) {
+  const TrendIcon = trend === 'up' ? ArrowUpRight : trend === 'down' ? ArrowDownRight : Minus;
+  const trendColor = trend === 'up' ? 'text-green-600' : trend === 'down' ? 'text-red-500' : 'text-steel-400';
+
+  return (
+    <div onClick={onClick} className={`card p-4 flex items-center gap-4 ${onClick ? 'cursor-pointer hover:shadow-md transition-shadow' : ''}`}>
+      {gauge ? (
+        <div className="relative">
+          <GaugeRing pct={gauge.pct} color={gauge.color} />
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span className="text-xs font-bold text-foreground tabular-nums rotate-90">{gauge.pct}%</span>
+          </div>
+        </div>
+      ) : (
+        <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${iconColor}`}>
+          <Icon size={18} className="text-white" />
+        </div>
+      )}
+      <div className="flex-1 min-w-0">
+        <div className="text-lg font-bold text-foreground tabular-nums leading-tight">{value}</div>
+        <div className="text-xs text-muted-foreground mt-0.5">{label}</div>
+        {sub && <div className="text-[11px] text-steel-400 mt-0.5">{sub}</div>}
+      </div>
+      {trendValue && (
+        <div className={`flex items-center gap-0.5 text-xs font-medium ${trendColor}`}>
+          <TrendIcon size={12} />
+          {trendValue}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ── Dashboard page ───────────────────────────────────────────────── */
 export function DashboardPage() {
   const navigate = useNavigate();
@@ -132,6 +194,12 @@ export function DashboardPage() {
     queryKey: ['dashboard'],
     queryFn: () => reportingApi.getDashboard().then((r) => r.data),
     refetchInterval: 60_000,
+  });
+
+  const { data: kpis, isLoading: kpisLoading } = useQuery({
+    queryKey: ['kpis'],
+    queryFn: () => reportingApi.getKpis().then((r) => r.data),
+    refetchInterval: 120_000,
   });
 
   const hour = new Date().getHours();
@@ -226,6 +294,160 @@ export function DashboardPage() {
           />
         </div>
       )}
+
+      {/* ── Business KPIs ──────────────────────────────────────────── */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold text-foreground">Business KPIs</h2>
+          <span className="text-[11px] text-muted-foreground">This month</span>
+        </div>
+
+        {kpisLoading ? (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="card p-4 flex items-center gap-4">
+                <div className="skeleton w-10 h-10 rounded-xl" />
+                <div className="flex-1 space-y-2">
+                  <div className="skeleton h-5 w-16" />
+                  <div className="skeleton h-3 w-24" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Revenue */}
+            <FundamentalCard
+              label="Revenue This Month"
+              icon={Target}
+              iconColor="bg-emerald-500"
+              value={fmtCurrency(kpis?.revenue?.thisMonth ?? 0)}
+              sub={`YTD: ${fmtCurrency(kpis?.revenue?.ytd ?? 0)}`}
+              trend={kpis?.revenue?.growthPct != null ? (kpis.revenue.growthPct >= 0 ? 'up' : 'down') : 'flat'}
+              trendValue={kpis?.revenue?.growthPct != null ? `${kpis.revenue.growthPct > 0 ? '+' : ''}${kpis.revenue.growthPct}%` : undefined}
+              onClick={() => navigate('/accounting/invoices')}
+            />
+
+            {/* Number of Sales */}
+            <FundamentalCard
+              label="Sales Orders"
+              icon={Hash}
+              iconColor="bg-blue-500"
+              value={String(kpis?.sales?.countThisMonth ?? 0)}
+              sub={`Avg order: ${fmtCurrency(kpis?.sales?.avgOrderValue ?? 0)}`}
+              trend={kpis?.sales?.growthPct != null ? (kpis.sales.growthPct >= 0 ? 'up' : 'down') : 'flat'}
+              trendValue={kpis?.sales?.growthPct != null ? `${kpis.sales.growthPct > 0 ? '+' : ''}${kpis.sales.growthPct}%` : undefined}
+              onClick={() => navigate('/sales/orders')}
+            />
+
+            {/* Dispatch Ready Value */}
+            <FundamentalCard
+              label="Ready for Dispatch"
+              icon={Truck}
+              iconColor="bg-amber-500"
+              value={fmtCurrency(kpis?.dispatchReady?.value ?? 0)}
+              sub={`${kpis?.dispatchReady?.count ?? 0} work orders`}
+              onClick={() => navigate('/processing/work-orders')}
+            />
+
+            {/* Machine Utilisation */}
+            <FundamentalCard
+              label="Avg Machine Utilisation"
+              icon={Gauge}
+              iconColor="bg-teal-500"
+              value={`${kpis?.machineUtilisation?.avgPct ?? 0}%`}
+              sub={`${kpis?.machineUtilisation?.centers?.length ?? 0} work centres`}
+              gauge={{
+                pct: kpis?.machineUtilisation?.avgPct ?? 0,
+                color: (kpis?.machineUtilisation?.avgPct ?? 0) >= 75 ? '#22c55e'
+                     : (kpis?.machineUtilisation?.avgPct ?? 0) >= 50 ? '#f59e0b' : '#ef4444',
+              }}
+              onClick={() => navigate('/processing/work-orders')}
+            />
+
+            {/* Quote Conversion Rate */}
+            <FundamentalCard
+              label="Quote Conversion"
+              icon={Percent}
+              iconColor="bg-violet-500"
+              value={kpis?.quoteConversion?.pct != null ? `${kpis.quoteConversion.pct}%` : '--'}
+              sub={`${kpis?.quoteConversion?.won ?? 0} of ${kpis?.quoteConversion?.total ?? 0} quotes`}
+              gauge={kpis?.quoteConversion?.pct != null ? {
+                pct: kpis.quoteConversion.pct,
+                color: kpis.quoteConversion.pct >= 50 ? '#22c55e' : kpis.quoteConversion.pct >= 30 ? '#f59e0b' : '#ef4444',
+              } : undefined}
+              onClick={() => navigate('/sales/quotes')}
+            />
+
+            {/* On-Time Delivery */}
+            <FundamentalCard
+              label="On-Time Delivery"
+              icon={Clock}
+              iconColor="bg-cyan-500"
+              value={kpis?.onTimeDeliveryPct != null ? `${kpis.onTimeDeliveryPct}%` : '--'}
+              sub="shipped on or before due"
+            />
+
+            {/* Inventory Turnover */}
+            <FundamentalCard
+              label="Inventory Turnover"
+              icon={RotateCcw}
+              iconColor="bg-orange-500"
+              value={kpis?.inventoryTurnover != null ? `${kpis.inventoryTurnover}x` : '--'}
+              sub="COGS / avg inventory (YTD)"
+              onClick={() => navigate('/inventory')}
+            />
+
+            {/* Open Backlog */}
+            <FundamentalCard
+              label="Order Backlog"
+              icon={ClipboardList}
+              iconColor="bg-indigo-500"
+              value={fmtCurrency(kpis?.backlog?.value ?? 0)}
+              sub={`${kpis?.backlog?.count ?? 0} open orders`}
+              onClick={() => navigate('/sales/orders')}
+            />
+          </div>
+        )}
+
+        {/* Machine utilisation breakdown */}
+        {!kpisLoading && kpis?.machineUtilisation?.centers?.length > 0 && (
+          <div className="card mt-4">
+            <div className="card-header">
+              <h3 className="font-semibold text-foreground text-sm">Work Centre Utilisation</h3>
+              <span className="text-xs text-muted-foreground">This month</span>
+            </div>
+            <div className="card-body">
+              <div className="space-y-3">
+                {kpis.machineUtilisation.centers
+                  .sort((a: any, b: any) => b.utilisationPct - a.utilisationPct)
+                  .map((center: any) => (
+                  <div key={center.id} className="flex items-center gap-3">
+                    <div className="w-28 text-xs font-medium text-foreground truncate" title={center.name}>
+                      {center.code}
+                    </div>
+                    <div className="flex-1 bg-steel-100 rounded-full h-2.5 overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-700 ${
+                          center.utilisationPct >= 75 ? 'bg-green-500'
+                          : center.utilisationPct >= 50 ? 'bg-amber-500' : 'bg-red-500'
+                        }`}
+                        style={{ width: `${center.utilisationPct}%` }}
+                      />
+                    </div>
+                    <div className="w-12 text-right text-xs font-semibold text-foreground tabular-nums">
+                      {center.utilisationPct}%
+                    </div>
+                    <div className="w-16 text-right text-[11px] text-muted-foreground">
+                      {center.jobCount} jobs
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* ── Charts row ──────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
