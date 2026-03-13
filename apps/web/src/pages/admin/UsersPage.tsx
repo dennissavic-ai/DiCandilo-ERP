@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { usersApi } from '../../services/api';
-import { Plus, Search, Users, ShieldCheck, X, Eye, EyeOff, ChevronDown, Check } from 'lucide-react';
+import { Plus, Search, Users, ShieldCheck, X, Eye, EyeOff, ChevronDown, Check, Pencil } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 
 // ── Role color mapping ──────────────────────────────────────────────────────
@@ -235,11 +235,158 @@ function InviteUserModal({ onClose }: { onClose: () => void }) {
   );
 }
 
+// ── Edit User Modal ─────────────────────────────────────────────────────────
+
+function EditUserModal({ user, onClose }: { user: any; onClose: () => void }) {
+  const queryClient = useQueryClient();
+  const [form, setForm] = useState({
+    firstName: user.firstName ?? '',
+    lastName: user.lastName ?? '',
+    email: user.email ?? '',
+    phone: user.phone ?? '',
+    roleId: user.role?.id ?? '',
+    isActive: user.isActive ?? true,
+  });
+  const [error, setError] = useState('');
+  const [confirmDeactivate, setConfirmDeactivate] = useState(false);
+
+  const { data: rolesData } = useQuery({
+    queryKey: ['roles'],
+    queryFn: () => usersApi.listRoles().then((r) => r.data),
+  });
+  const roles: any[] = rolesData ?? [];
+
+  const { mutate, isPending } = useMutation({
+    mutationFn: (data: object) => usersApi.updateUser(user.id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      onClose();
+    },
+    onError: (err: any) => {
+      setError(err?.response?.data?.message ?? err?.message ?? 'Failed to update user');
+    },
+  });
+
+  function set(field: string, value: string | boolean) {
+    setForm((f) => ({ ...f, [field]: value }));
+    setError('');
+    setConfirmDeactivate(false);
+  }
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!form.firstName || !form.lastName || !form.email || !form.roleId) {
+      setError('Please fill in all required fields.');
+      return;
+    }
+    if (!form.isActive && user.isActive && !confirmDeactivate) {
+      setConfirmDeactivate(true);
+      return;
+    }
+    mutate({
+      firstName: form.firstName,
+      lastName: form.lastName,
+      roleId: form.roleId,
+      isActive: form.isActive,
+      ...(form.phone ? { phone: form.phone } : {}),
+    });
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="bg-background border border-border rounded-xl shadow-xl w-full max-w-md p-6">
+        <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 text-sm font-bold">
+              {(user.firstName?.[0] ?? '').toUpperCase()}{(user.lastName?.[0] ?? '').toUpperCase()}
+            </div>
+            <div>
+              <h2 className="text-sm font-semibold text-foreground">Edit User</h2>
+              <p className="text-[11px] text-muted-foreground">{user.email}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
+            <X size={16} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="form-label">First Name <span className="text-red-500">*</span></label>
+              <input className="input" value={form.firstName} onChange={(e) => set('firstName', e.target.value)} autoFocus />
+            </div>
+            <div>
+              <label className="form-label">Last Name <span className="text-red-500">*</span></label>
+              <input className="input" value={form.lastName} onChange={(e) => set('lastName', e.target.value)} />
+            </div>
+          </div>
+
+          <div>
+            <label className="form-label">Email</label>
+            <input className="input bg-steel-50 text-steel-500 cursor-not-allowed" type="email" value={form.email} disabled />
+            <p className="text-[11px] text-muted-foreground mt-1">Email cannot be changed. Contact a developer if needed.</p>
+          </div>
+
+          <div>
+            <label className="form-label">Phone</label>
+            <input className="input" type="tel" value={form.phone} onChange={(e) => set('phone', e.target.value)} />
+          </div>
+
+          <div>
+            <label className="form-label">Role <span className="text-red-500">*</span></label>
+            <select className="input" value={form.roleId} onChange={(e) => set('roleId', e.target.value)}>
+              <option value="">Select a role…</option>
+              {roles.map((r: any) => (
+                <option key={r.id} value={r.id}>{r.name}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Active / Deactivate toggle */}
+          <div className="flex items-center justify-between py-2 px-3 rounded-lg border border-steel-200 bg-steel-50/50">
+            <div>
+              <p className="text-sm font-medium text-foreground">Account Status</p>
+              <p className="text-[11px] text-muted-foreground">
+                {form.isActive ? 'User can log in and access the system' : 'User is blocked from logging in'}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => set('isActive', !form.isActive)}
+              className={`relative w-10 h-5 rounded-full transition-colors ${form.isActive ? 'bg-green-500' : 'bg-steel-300'}`}
+            >
+              <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${form.isActive ? 'left-[22px]' : 'left-0.5'}`} />
+            </button>
+          </div>
+
+          {confirmDeactivate && (
+            <div className="p-3 rounded-lg bg-red-50 border border-red-200">
+              <p className="text-xs text-red-700 font-medium">Are you sure you want to deactivate this user?</p>
+              <p className="text-[11px] text-red-600 mt-0.5">They will be immediately logged out and unable to access the system. Click "Save Changes" again to confirm.</p>
+            </div>
+          )}
+
+          {error && <p className="text-xs text-red-500">{error}</p>}
+
+          <div className="flex justify-end gap-2 pt-1">
+            <button type="button" className="btn-secondary btn-sm" onClick={onClose}>Cancel</button>
+            <button type="submit" className="btn-primary btn-sm" disabled={isPending}>
+              {isPending ? 'Saving…' : confirmDeactivate ? 'Confirm Deactivation' : 'Save Changes'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 // ── Users Page ──────────────────────────────────────────────────────────────
 
 export function UsersPage() {
   const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
+  const [editUser, setEditUser] = useState<any>(null);
   const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery({
@@ -271,6 +418,7 @@ export function UsersPage() {
   return (
     <div className="max-w-[1400px] mx-auto animate-fade-in">
       {showModal && <InviteUserModal onClose={() => setShowModal(false)} />}
+      {editUser && <EditUserModal user={editUser} onClose={() => setEditUser(null)} />}
 
       <div className="page-header">
         <div>
@@ -330,7 +478,7 @@ export function UsersPage() {
                     </tr>
                   ))
                 : users.map((u: any) => (
-                    <tr key={u.id}>
+                    <tr key={u.id} onClick={() => setEditUser(u)} className="cursor-pointer hover:bg-steel-50/60 transition-colors">
                       <td>
                         <div className="flex items-center gap-2.5">
                           <div className="w-7 h-7 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 text-xs font-bold">
@@ -354,8 +502,13 @@ export function UsersPage() {
                           ? <span className="badge-green">Active</span>
                           : <span className="badge-red">Inactive</span>}
                       </td>
-                      <td className="text-xs text-steel-400">
-                        {u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleDateString('en-AU') : 'Never'}
+                      <td>
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-steel-400">
+                            {u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleDateString('en-AU') : 'Never'}
+                          </span>
+                          <Pencil size={12} className="text-steel-300 group-hover:text-steel-500" />
+                        </div>
                       </td>
                     </tr>
                   ))}
