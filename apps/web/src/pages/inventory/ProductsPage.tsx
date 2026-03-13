@@ -242,7 +242,7 @@ export function ProductsPage() {
                 <label className="form-label">Description *</label>
                 <input className="input" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="6mm Mild Steel Plate 2400x1200" />
               </div>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="form-label">Material Type</label>
                   <input className="input" value={form.materialType} onChange={e => setForm(f => ({ ...f, materialType: e.target.value }))} placeholder="steel" />

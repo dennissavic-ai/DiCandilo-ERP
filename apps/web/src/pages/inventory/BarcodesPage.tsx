@@ -255,9 +255,9 @@ function PrintTab() {
   }, [labels, pages]);
 
   return (
-    <div className="flex h-full overflow-hidden">
+    <div className="flex flex-col lg:flex-row h-full overflow-hidden">
       {/* ── Left panel: product list ────────────────────────────────────── */}
-      <div className="w-80 flex-shrink-0 border-r border-steel-200 bg-white flex flex-col overflow-hidden">
+      <div className="w-full lg:w-80 flex-shrink-0 border-b lg:border-b-0 lg:border-r border-steel-200 bg-white flex flex-col overflow-hidden max-h-[40vh] lg:max-h-none">
         {/* Search */}
         <div className="p-3 border-b border-steel-100">
           <div className="relative">
@@ -365,30 +365,30 @@ function PrintTab() {
       {/* ── Right panel: A4 preview ─────────────────────────────────────── */}
       <div className="flex-1 flex flex-col overflow-hidden bg-steel-100">
         {/* Toolbar */}
-        <div className="flex items-center justify-between px-6 py-3 bg-white border-b border-steel-200">
-          <div className="flex items-center gap-3">
-            <FileText size={15} className="text-steel-400" />
-            <span className="text-sm text-steel-600">
+        <div className="flex items-center justify-between px-3 sm:px-6 py-3 bg-white border-b border-steel-200 gap-2">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <FileText size={15} className="text-steel-400 flex-shrink-0" />
+            <span className="text-xs sm:text-sm text-steel-600 truncate">
               {labels.length === 0
                 ? 'Select products to preview labels'
-                : `${labels.length} label${labels.length !== 1 ? 's' : ''} across ${pages.length} page${pages.length !== 1 ? 's' : ''}`}
+                : `${labels.length} label${labels.length !== 1 ? 's' : ''} · ${pages.length} page${pages.length !== 1 ? 's' : ''}`}
             </span>
             {loadingLabels && (
-              <div className="w-4 h-4 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
+              <div className="w-4 h-4 border-2 border-primary-500 border-t-transparent rounded-full animate-spin flex-shrink-0" />
             )}
           </div>
           <button
             onClick={downloadPdf}
             disabled={labels.length === 0}
-            className="btn-primary btn-sm flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="btn-primary btn-sm flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
           >
             <Download size={14} />
-            Download A4 PDF
+            <span className="hidden sm:inline">Download A4</span> PDF
           </button>
         </div>
 
         {/* A4 page(s) preview */}
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto overflow-x-auto p-3 sm:p-6">
           {labels.length === 0 && !loadingLabels && (
             <div className="flex flex-col items-center justify-center h-full text-steel-400">
               <QrCode size={48} className="mb-3 opacity-30" />
@@ -427,26 +427,47 @@ function A4PagePreview({
   totalPages: number;
 }) {
   // Scale the 210x297mm A4 to fit on screen
-  // Use a fixed pixel width and derive height from ratio
   const PX_W = 595; // ~A4 at 72dpi
   const PX_H = Math.round(PX_W * (A4_H / A4_W));
   const scale = PX_W / A4_W; // px per mm
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [cssScale, setCssScale] = useState(1);
+
+  // Auto-scale A4 preview to fit container width
+  useEffect(() => {
+    const el = containerRef.current?.parentElement;
+    if (!el) return;
+    const observer = new ResizeObserver((entries) => {
+      const w = entries[0]?.contentRect.width ?? PX_W;
+      setCssScale(Math.min(1, (w - 16) / PX_W));
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   return (
-    <div className="relative">
+    <div
+      className="relative"
+      ref={containerRef}
+      style={{
+        width: PX_W * cssScale,
+        height: PX_H * cssScale,
+      }}
+    >
       {/* Page number badge */}
       {totalPages > 1 && (
-        <div className="absolute -top-3 right-2 px-2 py-0.5 rounded-full bg-steel-200 text-[10px] text-steel-500 font-medium">
+        <div className="absolute -top-3 right-2 px-2 py-0.5 rounded-full bg-steel-200 text-[10px] text-steel-500 font-medium z-10">
           Page {pageNumber} / {totalPages}
         </div>
       )}
 
       <div
-        className="bg-white shadow-xl border border-steel-200 relative overflow-hidden"
+        className="bg-white shadow-xl border border-steel-200 relative overflow-hidden origin-top-left"
         style={{
           width: PX_W,
           height: PX_H,
           padding: `${MARGIN * scale}px`,
+          transform: `scale(${cssScale})`,
         }}
       >
         <div

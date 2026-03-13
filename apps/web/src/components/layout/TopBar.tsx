@@ -1,4 +1,4 @@
-import { Bell, Search, LogOut, User, ChevronDown, Settings, ScanLine } from 'lucide-react';
+import { Bell, Search, LogOut, User, ChevronDown, Settings, ScanLine, Menu } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
@@ -12,7 +12,7 @@ function Initials({ first, last }: { first?: string; last?: string }) {
   );
 }
 
-export function TopBar() {
+export function TopBar({ onMenuToggle }: { onMenuToggle?: () => void } = {}) {
   const navigate = useNavigate();
   const { user, refreshToken, logout } = useAuthStore();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -36,9 +36,18 @@ export function TopBar() {
   };
 
   return (
-    <header className="h-13 bg-white border-b border-border flex items-center px-5 gap-4 flex-shrink-0 z-10 shadow-sm">
+    <header className="h-13 bg-white border-b border-border flex items-center px-3 sm:px-5 gap-2 sm:gap-4 flex-shrink-0 z-10 shadow-sm">
+      {/* Mobile hamburger */}
+      <button
+        className="btn-icon btn-ghost rounded-lg lg:hidden"
+        onClick={onMenuToggle}
+        aria-label="Toggle menu"
+      >
+        <Menu size={18} />
+      </button>
+
       {/* Global search */}
-      <div className="flex-1 max-w-sm relative">
+      <div className="flex-1 max-w-xs sm:max-w-sm relative">
         <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-steel-400 pointer-events-none" />
         <input
           type="search"

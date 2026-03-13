@@ -171,11 +171,15 @@ function renderItems(items: NavItem[]) {
   );
 }
 
-export function Sidebar() {
+export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
   return (
     <aside
       className="w-[220px] flex-shrink-0 flex flex-col h-full overflow-hidden select-none"
       style={{ background: 'hsl(var(--sidebar-background))' }}
+      onClick={(e) => {
+        // Close mobile drawer when a link is clicked
+        if ((e.target as HTMLElement).closest('a')) onNavigate?.();
+      }}
     >
       {/* Logo */}
       <div className="flex items-center gap-3 px-4 py-[18px] border-b border-white/[0.07]">
