@@ -72,6 +72,7 @@ const NAV_OPS: NavItem[] = [
       { label: 'Products',         to: '/inventory/products',         icon: Package },
       { label: 'Stock on Hand',    to: '/inventory',                  icon: Layers },
       { label: 'Transfer Stock',   to: '/inventory/transfer',         icon: ArrowLeftRight },
+      { label: 'Barcodes',          to: '/inventory/barcodes',         icon: QrCode },
       { label: 'Auto Fulfillment', to: '/inventory/auto-fulfillment', icon: Zap },
       { label: 'Adjust Stock',     to: '/inventory/adjust',           icon: Settings },
     ],
@@ -90,7 +91,6 @@ const NAV_OPS: NavItem[] = [
     ],
   },
   { label: 'Value Stream Map', to: '/leadership/value-stream-map', icon: GitFork },
-  { label: 'Scan Barcode', to: '/scan', icon: QrCode },
 ];
 
 function useGroupActive(children: NavChild[]) {

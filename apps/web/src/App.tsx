@@ -44,6 +44,7 @@ import { UsersPage } from './pages/admin/UsersPage';
 import { AutomationPage } from './pages/admin/AutomationPage';
 import { IntegrationsPage } from './pages/admin/IntegrationsPage';
 import { BarcodePrintPage } from './pages/inventory/BarcodePrintPage';
+import { BarcodesPage } from './pages/inventory/BarcodesPage';
 import { ScanPage } from './pages/ScanPage';
 import { TasksPage } from './pages/TasksPage';
 import { NotFoundPage } from './pages/NotFoundPage';
@@ -89,6 +90,7 @@ export default function App() {
             <Route path="adjust" element={<StockAdjustPage />} />
             <Route path="receive" element={<ReceiveStockPage />} />
             <Route path="transfer" element={<StockTransferPage />} />
+            <Route path="barcodes" element={<BarcodesPage />} />
             <Route path="mtr" element={<MtrPage />} />
             <Route path="auto-fulfillment" element={<AutoFulfillmentPage />} />
           </Route>

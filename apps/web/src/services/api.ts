@@ -132,6 +132,7 @@ export const inventoryApi = {
   generateBarcode: (data: object) => api.post('/barcodes/generate', data),
   scanBarcode: (data: string) => api.post('/barcodes/scan', { data }),
   getProductBarcodeLabel: (productId: string) => api.get(`/barcodes/products/${productId}/label`),
+  getBatchBarcodeLabels: (productIds: string[]) => api.post('/barcodes/products/labels/batch', { productIds }),
 };
 
 // Sales

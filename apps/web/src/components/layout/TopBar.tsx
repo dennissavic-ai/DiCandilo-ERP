@@ -54,7 +54,7 @@ export function TopBar() {
         {/* Barcode scanner — prominent on mobile */}
         <button
           className="btn-icon btn-ghost rounded-lg text-primary-600 hover:bg-primary-50"
-          onClick={() => navigate('/scan')}
+          onClick={() => navigate('/inventory/barcodes')}
           title="Scan barcode"
           aria-label="Open barcode scanner"
         >

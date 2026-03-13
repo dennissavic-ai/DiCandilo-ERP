@@ -121,6 +121,43 @@ export const barcodeRoutes: FastifyPluginAsync = async (fastify) => {
     } catch (err) { return handleError(reply, err); }
   });
 
+  // ── POST /products/labels/batch — multi-format labels for multiple products ─
+
+  fastify.post('/products/labels/batch', { preHandler: [authenticate] }, async (request, reply) => {
+    try {
+      const { productIds } = z.object({
+        productIds: z.array(z.string().uuid()).min(1).max(100),
+      }).parse(request.body);
+
+      const user = (request as any).user;
+      const products = await prisma.product.findMany({
+        where: { id: { in: productIds }, companyId: user.companyId },
+      });
+
+      const labels = await Promise.all(
+        products.map(async (product) => {
+          const sku = product.code;
+          const qrData = `ERP:PRODUCT:${product.id}`;
+
+          const [qrDataUrl, code128DataUrl] = await Promise.all([
+            QRCode.toDataURL(qrData, { errorCorrectionLevel: 'M', margin: 1, width: 200 }),
+            generateCode128Png(sku),
+          ]);
+
+          return {
+            productId: product.id,
+            sku,
+            description: product.description,
+            qrCode: { format: 'QR' as const, standard: 'ISO/IEC 18004', dataUrl: qrDataUrl, data: qrData },
+            code128: { format: 'CODE128' as const, standard: 'ISO/IEC 15417', dataUrl: code128DataUrl, data: sku },
+          };
+        })
+      );
+
+      return { labels };
+    } catch (err) { return handleError(reply, err); }
+  });
+
   // ── GET /products/:productId/label — full multi-format label for a product ─
 
   fastify.get('/products/:productId/label', { preHandler: [authenticate] }, async (request, reply) => {
