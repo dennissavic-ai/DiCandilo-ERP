@@ -1,13 +1,13 @@
 import { FastifyInstance } from 'fastify';
 import { prisma } from '../../config/database';
-import { sendEmail, quoteFollowUpTemplate, quoteExpiryWarningTemplate } from '../../utils/email';
+import { sendEmail, quoteFollowUpTemplate, quoteExpiryWarningTemplate, invoiceFollowUpTemplate } from '../../utils/email';
 
 const INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 
 // ─── Scheduler Entry Point ────────────────────────────────────────────────────
 
 export function startAutomationScheduler(fastify: FastifyInstance): void {
-  fastify.log.info('[automation] Lead-nurturing email scheduler starting (interval: 1 hour)');
+  fastify.log.info('[automation] Email scheduler starting (interval: 1 hour)');
 
   // Run immediately on startup, then every hour
   void runScheduler(fastify);
@@ -42,8 +42,17 @@ async function runScheduler(fastify: FastifyInstance): Promise<void> {
 
 // ─── Per-Company Processing ───────────────────────────────────────────────────
 
+const INVOICE_FOLLOWUP_TRIGGERS = [
+  'INVOICE_FOLLOWUP_7D',
+  'INVOICE_FOLLOWUP_14D',
+  'INVOICE_FOLLOWUP_21D',
+  'INVOICE_FOLLOWUP_30D',
+] as const;
+
+const QUOTE_TRIGGERS = ['QUOTE_FOLLOWUP_3D', 'QUOTE_FOLLOWUP_7D', 'QUOTE_EXPIRY_WARNING'] as const;
+
 async function processCompany(fastify: FastifyInstance, companyId: string): Promise<void> {
-  // Load enabled automation rules for quote-related triggers
+  // Load enabled automation rules for quote and invoice triggers
   let rules: Array<{ trigger: string; isEnabled: boolean; subject: string }> = [];
 
   try {
@@ -51,7 +60,7 @@ async function processCompany(fastify: FastifyInstance, companyId: string): Prom
       where: {
         companyId,
         isEnabled: true,
-        trigger: { in: ['QUOTE_FOLLOWUP_3D', 'QUOTE_FOLLOWUP_7D', 'QUOTE_EXPIRY_WARNING'] },
+        trigger: { in: [...QUOTE_TRIGGERS, ...INVOICE_FOLLOWUP_TRIGGERS] },
       },
     });
   } catch (err) {
@@ -65,48 +74,55 @@ async function processCompany(fastify: FastifyInstance, companyId: string): Prom
   }
 
   const ruleMap = new Map(rules.map((r) => [r.trigger, r]));
-
-  // Find open SalesQuotes (SENT or DRAFT status, not deleted)
-  let quotes: Array<{
-    id: string;
-    quoteNumber: string;
-    customerId: string;
-    status: string;
-    createdAt: Date;
-    validUntil: Date | null;
-    totalAmount: bigint;
-  }> = [];
-
-  try {
-    quotes = await prisma.salesQuote.findMany({
-      where: {
-        companyId,
-        deletedAt: null,
-        status: { in: ['SENT', 'DRAFT'] as any },
-      },
-      select: {
-        id: true,
-        quoteNumber: true,
-        customerId: true,
-        status: true,
-        createdAt: true,
-        validUntil: true,
-        totalAmount: true,
-      },
-    });
-  } catch (err) {
-    fastify.log.error({ err, companyId }, '[automation] Failed to query SalesQuotes');
-    return;
-  }
-
   const now = new Date();
 
-  for (const quote of quotes) {
+  // ── Quote follow-ups ───────────────────────────────────────────────────
+  const hasQuoteRules = QUOTE_TRIGGERS.some((t) => ruleMap.has(t));
+  if (hasQuoteRules) {
+    let quotes: Array<{
+      id: string;
+      quoteNumber: string;
+      customerId: string;
+      status: string;
+      createdAt: Date;
+      validUntil: Date | null;
+      totalAmount: bigint;
+    }> = [];
+
     try {
-      await processQuote(fastify, companyId, quote, ruleMap, now);
+      quotes = await prisma.salesQuote.findMany({
+        where: {
+          companyId,
+          deletedAt: null,
+          status: { in: ['SENT', 'DRAFT'] as any },
+        },
+        select: {
+          id: true,
+          quoteNumber: true,
+          customerId: true,
+          status: true,
+          createdAt: true,
+          validUntil: true,
+          totalAmount: true,
+        },
+      });
     } catch (err) {
-      fastify.log.error({ err, quoteId: quote.id }, '[automation] Error processing quote, skipping');
+      fastify.log.error({ err, companyId }, '[automation] Failed to query SalesQuotes');
     }
+
+    for (const quote of quotes) {
+      try {
+        await processQuote(fastify, companyId, quote, ruleMap, now);
+      } catch (err) {
+        fastify.log.error({ err, quoteId: quote.id }, '[automation] Error processing quote, skipping');
+      }
+    }
+  }
+
+  // ── Invoice follow-ups ─────────────────────────────────────────────────
+  const hasInvoiceRules = INVOICE_FOLLOWUP_TRIGGERS.some((t) => ruleMap.has(t));
+  if (hasInvoiceRules) {
+    await processOverdueInvoices(fastify, companyId, ruleMap, now);
   }
 }
 
@@ -197,6 +213,98 @@ async function processQuote(
         });
         await sendAndLog(fastify, { companyId, trigger: 'QUOTE_EXPIRY_WARNING', entityType: 'SalesQuote', entityId: quote.id, recipient: emailAddr, subject, html });
       }
+    }
+  }
+}
+
+// ─── Invoice Follow-Up Processing ─────────────────────────────────────────────
+
+const INVOICE_DAY_TRIGGERS: Array<{ days: number; trigger: string }> = [
+  { days: 30, trigger: 'INVOICE_FOLLOWUP_30D' },
+  { days: 21, trigger: 'INVOICE_FOLLOWUP_21D' },
+  { days: 14, trigger: 'INVOICE_FOLLOWUP_14D' },
+  { days: 7,  trigger: 'INVOICE_FOLLOWUP_7D' },
+];
+
+async function processOverdueInvoices(
+  fastify: FastifyInstance,
+  companyId: string,
+  ruleMap: Map<string, { trigger: string; isEnabled: boolean; subject: string }>,
+  now: Date
+): Promise<void> {
+  // Find unpaid invoices past their due date
+  let invoices: Array<{
+    id: string;
+    invoiceNumber: string;
+    customerId: string;
+    dueDate: Date;
+    totalAmount: bigint;
+    balanceDue: bigint;
+    currencyCode: string;
+  }> = [];
+
+  try {
+    invoices = await prisma.invoice.findMany({
+      where: {
+        companyId,
+        deletedAt: null,
+        status: { in: ['SENT', 'PARTIALLY_PAID', 'OVERDUE'] as any },
+        dueDate: { lt: now },
+      },
+      select: {
+        id: true,
+        invoiceNumber: true,
+        customerId: true,
+        dueDate: true,
+        totalAmount: true,
+        balanceDue: true,
+        currencyCode: true,
+      },
+    });
+  } catch (err) {
+    fastify.log.error({ err, companyId }, '[automation] Failed to query overdue invoices');
+    return;
+  }
+
+  for (const invoice of invoices) {
+    try {
+      const daysOverdue = Math.floor((now.getTime() - invoice.dueDate.getTime()) / (1000 * 60 * 60 * 24));
+
+      // Resolve customer email
+      const emailAddr = await resolveCustomerEmail(invoice.customerId);
+      if (!emailAddr) {
+        fastify.log.debug({ invoiceId: invoice.id }, '[automation] No customer email found, skipping invoice');
+        continue;
+      }
+
+      const customer = await prisma.customer.findFirst({
+        where: { id: invoice.customerId },
+        select: { name: true },
+      });
+      const customerName = customer?.name ?? 'Valued Customer';
+
+      // Check each day threshold (highest first) and send the appropriate follow-up
+      for (const { days, trigger } of INVOICE_DAY_TRIGGERS) {
+        if (daysOverdue >= days && ruleMap.has(trigger)) {
+          const alreadySent = await hasEmailLog(invoice.id, 'Invoice', trigger);
+          if (!alreadySent) {
+            const rule = ruleMap.get(trigger)!;
+            const subject = rule.subject || `Payment Reminder: Invoice ${invoice.invoiceNumber} (${days} days overdue)`;
+            const html = invoiceFollowUpTemplate({
+              invoiceNumber: invoice.invoiceNumber,
+              customerName,
+              dueDate: invoice.dueDate.toISOString().split('T')[0],
+              daysOverdue,
+              totalAmount: Number(invoice.totalAmount),
+              balanceDue: Number(invoice.balanceDue),
+              currencyCode: invoice.currencyCode,
+            });
+            await sendAndLog(fastify, { companyId, trigger, entityType: 'Invoice', entityId: invoice.id, recipient: emailAddr, subject, html });
+          }
+        }
+      }
+    } catch (err) {
+      fastify.log.error({ err, invoiceId: invoice.id }, '[automation] Error processing invoice, skipping');
     }
   }
 }
