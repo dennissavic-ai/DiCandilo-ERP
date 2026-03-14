@@ -72,6 +72,77 @@ interface WorkCenter {
   type: string;
 }
 
+// ── Unscheduled Actions Panel ───────────────────────────────────────────────
+
+function UnscheduledPanel({
+  workOrders,
+  onClickSchedule,
+}: {
+  workOrders: any[];
+  onClickSchedule: (woId: string, wcId?: string) => void;
+}) {
+  // Collect all WO lines that don't have schedule blocks yet
+  const unscheduledActions = useMemo(() => {
+    const items: { woId: string; woNumber: string; customer: string; line: any; priority: number }[] = [];
+    for (const wo of workOrders) {
+      if (['COMPLETED', 'CANCELLED'].includes(wo.status)) continue;
+      const hasBlocks = wo.jobPlan?.scheduleBlocks?.length > 0;
+      // Show all lines from WOs that have no schedule blocks
+      // In the future this could be per-line tracking
+      if (!hasBlocks) {
+        for (const line of wo.lines ?? []) {
+          items.push({
+            woId: wo.id,
+            woNumber: wo.workOrderNumber,
+            customer: wo.salesOrder?.customer?.name ?? 'Internal',
+            line,
+            priority: wo.priority,
+          });
+        }
+      }
+    }
+    return items;
+  }, [workOrders]);
+
+  if (unscheduledActions.length === 0) {
+    return (
+      <div className="text-center py-6 text-sm text-muted-foreground">
+        <CheckCircle2 size={20} className="mx-auto mb-2 text-green-400" />
+        All actions scheduled
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-1.5">
+      {unscheduledActions.map((item) => (
+        <button
+          key={`${item.woId}-${item.line.id}`}
+          onClick={() => onClickSchedule(item.woId, item.line.workCenterId ?? undefined)}
+          className="w-full text-left px-3 py-2.5 rounded-lg border border-amber-200 bg-amber-50/50 hover:bg-amber-100/60 transition-colors group"
+        >
+          <div className="flex items-center gap-2">
+            <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${item.priority <= 3 ? 'bg-green-500' : item.priority <= 6 ? 'bg-amber-500' : 'bg-red-500'}`} />
+            <span className="text-[11px] font-bold text-steel-700 truncate">{item.woNumber}</span>
+            <span className="text-[10px] text-steel-400 truncate flex-1">{item.customer}</span>
+          </div>
+          <div className="mt-1 flex items-center gap-2">
+            <span className="text-xs text-steel-800 font-medium truncate">{item.line.operation}</span>
+            {item.line.estimatedMinutes && (
+              <span className="text-[10px] text-steel-400 flex-shrink-0">{minutesToLabel(item.line.estimatedMinutes)}</span>
+            )}
+          </div>
+          {item.line.workCenter && (
+            <div className="mt-0.5 text-[10px] text-steel-400 flex items-center gap-1">
+              <Wrench size={9} /> {item.line.workCenter.name}
+            </div>
+          )}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 // ── Add Block Modal ──────────────────────────────────────────────────────────
 
 function AddBlockModal({
@@ -82,6 +153,7 @@ function AddBlockModal({
   isSaving,
   defaultWorkCenterId,
   defaultDate,
+  defaultWorkOrderId,
 }: {
   workCenters: WorkCenter[];
   workOrders: any[];
@@ -90,8 +162,9 @@ function AddBlockModal({
   isSaving: boolean;
   defaultWorkCenterId?: string;
   defaultDate?: Date;
+  defaultWorkOrderId?: string;
 }) {
-  const [workOrderId, setWorkOrderId] = useState('');
+  const [workOrderId, setWorkOrderId] = useState(defaultWorkOrderId ?? '');
   const [workCenterId, setWorkCenterId] = useState(defaultWorkCenterId ?? '');
   const [date, setDate] = useState(defaultDate ? format(defaultDate, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'));
   const [startTime, setStartTime] = useState('08:00');
@@ -295,7 +368,6 @@ function GanttChart({
                         width: Math.min(width, totalW - Math.max(left, labelW)),
                         height: rowH - 12,
                       }}
-                      onClick={() => navigate(`/processing/planning/${block.jobPlan.workOrder ? `/processing/work-orders/${block.id}` : ''}`)}
                     >
                       <div
                         className="h-full rounded-md border shadow-sm flex items-center gap-1.5 px-2 overflow-hidden transition-shadow hover:shadow-md"
@@ -421,7 +493,7 @@ export function PlanningPage() {
   const [zoom, setZoom] = useState<ZoomLevel>('2day');
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
   const [showAddModal, setShowAddModal] = useState(false);
-  const [addDefaults, setAddDefaults] = useState<{ wcId?: string; day?: Date }>({});
+  const [addDefaults, setAddDefaults] = useState<{ wcId?: string; day?: Date; woId?: string }>({});
   const [isAutoScheduling, setIsAutoScheduling] = useState(false);
   const [autoScheduleMsg, setAutoScheduleMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -451,13 +523,17 @@ export function PlanningPage() {
     mutationFn: ({ planId, data }: { planId: string; data: any }) => planningApi.addScheduleBlock(planId, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['planning-schedule'] });
+      qc.invalidateQueries({ queryKey: ['planning-work-orders'] });
       setShowAddModal(false);
     },
   });
 
   const { mutate: deleteBlock } = useMutation({
     mutationFn: ({ planId, blockId }: { planId: string; blockId: string }) => planningApi.deleteScheduleBlock(planId, blockId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['planning-schedule'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['planning-schedule'] });
+      qc.invalidateQueries({ queryKey: ['planning-work-orders'] });
+    },
   });
 
   // AI Auto-Schedule
@@ -482,8 +558,19 @@ export function PlanningPage() {
     }
   }
 
-  const withPlan = (workOrders as any[]).filter((wo) => wo.jobPlan);
-  const withoutPlan = (workOrders as any[]).filter((wo) => !wo.jobPlan);
+  // Count unscheduled actions
+  const unscheduledCount = useMemo(() => {
+    let count = 0;
+    for (const wo of workOrders as any[]) {
+      if (['COMPLETED', 'CANCELLED'].includes(wo.status)) continue;
+      if (!wo.jobPlan?.scheduleBlocks?.length) {
+        count += (wo.lines?.length ?? 0);
+      }
+    }
+    return count;
+  }, [workOrders]);
+
+  const scheduledCount = (scheduleBlocks as any[]).length;
   const isLoading = woLoading || wcLoading;
 
   return (
@@ -502,11 +589,11 @@ export function PlanningPage() {
           {/* KPI badges */}
           <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <AlertCircle size={13} className="text-yellow-500" />
-            {withoutPlan.length} unplanned
+            {unscheduledCount} unscheduled
           </span>
           <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <CheckCircle2 size={13} className="text-green-500" />
-            {withPlan.length} planned
+            {scheduledCount} scheduled
           </span>
 
           <div className="w-px h-5 bg-border mx-1" />
@@ -591,17 +678,42 @@ export function PlanningPage() {
 
       {/* Content */}
       {!isLoading && view === 'gantt' && (
-        <GanttChart
-          blocks={scheduleBlocks as unknown as ScheduleBlock[]}
-          workCenters={workCenters}
-          weekStart={weekStart}
-          zoom={zoom}
-          onDeleteBlock={(planId, blockId) => deleteBlock({ planId, blockId })}
-          onClickAdd={(wcId, day) => {
-            setAddDefaults({ wcId, day });
-            setShowAddModal(true);
-          }}
-        />
+        <div className="flex gap-4">
+          {/* Gantt */}
+          <div className="flex-1 min-w-0">
+            <GanttChart
+              blocks={scheduleBlocks as unknown as ScheduleBlock[]}
+              workCenters={workCenters}
+              weekStart={weekStart}
+              zoom={zoom}
+              onDeleteBlock={(planId, blockId) => deleteBlock({ planId, blockId })}
+              onClickAdd={(wcId, day) => {
+                setAddDefaults({ wcId, day });
+                setShowAddModal(true);
+              }}
+            />
+          </div>
+
+          {/* Unscheduled sidebar */}
+          <div className="w-64 flex-shrink-0">
+            <div className="card sticky top-4">
+              <div className="card-header flex items-center gap-2">
+                <AlertCircle size={13} className="text-amber-500" />
+                <span className="text-sm font-semibold">To Be Scheduled</span>
+                <span className="ml-auto text-[10px] font-bold text-amber-600 bg-amber-100 rounded-full px-1.5 py-0.5">{unscheduledCount}</span>
+              </div>
+              <div className="p-2 max-h-[calc(100vh-320px)] overflow-y-auto">
+                <UnscheduledPanel
+                  workOrders={workOrders as any[]}
+                  onClickSchedule={(woId, wcId) => {
+                    setAddDefaults({ woId, wcId });
+                    setShowAddModal(true);
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {!isLoading && view === 'list' && (
@@ -618,6 +730,7 @@ export function PlanningPage() {
           isSaving={isAddingBlock}
           defaultWorkCenterId={addDefaults.wcId}
           defaultDate={addDefaults.day}
+          defaultWorkOrderId={addDefaults.woId}
         />
       )}
     </div>

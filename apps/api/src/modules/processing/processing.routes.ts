@@ -63,8 +63,9 @@ export const processingRoutes: FastifyPluginAsync = async (fastify) => {
       const wo = await prisma.workOrder.findFirst({
         where: { id, companyId, deletedAt: null },
         include: {
-          lines: { include: { product: true, workCenter: true } },
-          salesOrder: { select: { orderNumber: true } },
+          lines: { include: { product: true, workCenter: true }, orderBy: { lineNumber: 'asc' } },
+          salesOrder: { select: { id: true, orderNumber: true, customer: { select: { name: true } } } },
+          timeEntries: { orderBy: { scannedAt: 'desc' }, take: 50 },
         },
       });
       if (!wo) throw new NotFoundError('WorkOrder', id);
@@ -168,6 +169,47 @@ export const processingRoutes: FastifyPluginAsync = async (fastify) => {
       }).parse(request.body);
       const line = await prisma.workOrderLine.update({ where: { id: lineId }, data: body });
       return line;
+    } catch (err) { return handleError(reply, err); }
+  });
+
+  // ── Add a new action/line to a work order ──────────────────────────────────
+  fastify.post('/work-orders/:woId/lines', { preHandler: [authenticate, requirePermission('processing', 'edit')] }, async (request, reply) => {
+    try {
+      const { companyId } = request.user as { companyId: string };
+      const { woId } = request.params as { woId: string };
+      const wo = await prisma.workOrder.findFirst({ where: { id: woId, companyId, deletedAt: null } });
+      if (!wo) throw new NotFoundError('WorkOrder', woId);
+
+      const body = z.object({
+        operation: z.string().min(1),
+        description: z.string().optional(),
+        workCenterId: z.string().uuid().optional(),
+        productId: z.string().uuid().optional(),
+        qtyRequired: z.number().positive().default(1),
+        estimatedMinutes: z.number().int().min(0).optional(),
+        notes: z.string().optional(),
+      }).parse(request.body);
+
+      const maxLine = await prisma.workOrderLine.aggregate({ where: { workOrderId: woId }, _max: { lineNumber: true } });
+      const lineNumber = (maxLine._max.lineNumber ?? 0) + 1;
+
+      const line = await prisma.workOrderLine.create({
+        data: { workOrderId: woId, lineNumber, ...body },
+        include: { product: true, workCenter: true },
+      });
+      return reply.status(201).send(line);
+    } catch (err) { return handleError(reply, err); }
+  });
+
+  // ── Delete a work order line ──────────────────────────────────────────────
+  fastify.delete('/work-orders/:woId/lines/:lineId', { preHandler: [authenticate, requirePermission('processing', 'edit')] }, async (request, reply) => {
+    try {
+      const { companyId } = request.user as { companyId: string };
+      const { woId, lineId } = request.params as { woId: string; lineId: string };
+      const wo = await prisma.workOrder.findFirst({ where: { id: woId, companyId, deletedAt: null } });
+      if (!wo) throw new NotFoundError('WorkOrder', woId);
+      await prisma.workOrderLine.delete({ where: { id: lineId } });
+      return { ok: true };
     } catch (err) { return handleError(reply, err); }
   });
 

@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, useNavigate } from 'react-router-dom';
 import { processingApi } from '../../services/api';
-import { ArrowLeft, Play, Pause, CheckCircle, XCircle, Clock, Wrench, Truck } from 'lucide-react';
+import { ArrowLeft, Play, Pause, CheckCircle, XCircle, Clock, Wrench, Truck, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { format } from 'date-fns';
 import { Modal } from '../../components/ui/Modal';
@@ -20,8 +20,6 @@ const STATUS_TRANSITIONS: Record<string, string[]> = {
   CANCELLED:   [],
 };
 
-function fmtMoney(cents: number) { return `$${(cents / 100).toLocaleString('en-AU', { minimumFractionDigits: 2 })}` }
-
 export function WorkOrderDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -33,21 +31,31 @@ export function WorkOrderDetailPage() {
     enabled: !!id,
   });
 
+  const { data: workCentersRaw } = useQuery({
+    queryKey: ['work-centers'],
+    queryFn: () => processingApi.listWorkCenters().then((r) => r.data),
+  });
+  const workCenters: any[] = (workCentersRaw as any) ?? [];
+
   const [statusModal, setStatusModal] = useState(false);
   const [newStatus, setNewStatus] = useState('');
   const [timeOpen, setTimeOpen] = useState(false);
   const [timeForm, setTimeForm] = useState({ hours: '', notes: '' });
   const [shipmentModalOpen, setShipmentModalOpen] = useState(false);
   const [shipmentSuccess, setShipmentSuccess] = useState<{ id: string } | null>(null);
+  const [actionOpen, setActionOpen] = useState(false);
+  const [actionForm, setActionForm] = useState({ operation: '', description: '', workCenterId: '', estimatedMinutes: '', qtyRequired: '1' });
+
+  const invalidateWO = () => qc.invalidateQueries({ queryKey: ['work-order', id] });
 
   const statusMutation = useMutation({
     mutationFn: (status: string) => processingApi.updateStatus(id!, status),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['work-order', id] }); setStatusModal(false); },
+    onSuccess: () => { invalidateWO(); setStatusModal(false); },
   });
 
   const timeMutation = useMutation({
     mutationFn: () => processingApi.addTimeEntry({ workOrderId: id!, ...timeForm }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['work-order', id] }); setTimeOpen(false); setTimeForm({ hours: '', notes: '' }); },
+    onSuccess: () => { invalidateWO(); setTimeOpen(false); setTimeForm({ hours: '', notes: '' }); },
   });
 
   const shipmentMutation = useMutation({
@@ -56,10 +64,30 @@ export function WorkOrderDetailPage() {
       salesOrderId: (wo as any)?.salesOrder?.id,
     }),
     onSuccess: (res) => {
-      qc.invalidateQueries({ queryKey: ['work-order', id] });
+      invalidateWO();
       setShipmentModalOpen(false);
       setShipmentSuccess({ id: (res.data as any).id });
     },
+  });
+
+  const addLineMutation = useMutation({
+    mutationFn: () => processingApi.addLine(id!, {
+      operation: actionForm.operation,
+      description: actionForm.description || undefined,
+      workCenterId: actionForm.workCenterId || undefined,
+      estimatedMinutes: actionForm.estimatedMinutes ? Number(actionForm.estimatedMinutes) : undefined,
+      qtyRequired: Number(actionForm.qtyRequired) || 1,
+    }),
+    onSuccess: () => {
+      invalidateWO();
+      setActionOpen(false);
+      setActionForm({ operation: '', description: '', workCenterId: '', estimatedMinutes: '', qtyRequired: '1' });
+    },
+  });
+
+  const deleteLineMutation = useMutation({
+    mutationFn: (lineId: string) => processingApi.deleteLine(id!, lineId),
+    onSuccess: invalidateWO,
   });
 
   if (isLoading) return (
@@ -72,9 +100,12 @@ export function WorkOrderDetailPage() {
   const status = w?.status ?? 'DRAFT';
   const transitions = STATUS_TRANSITIONS[status] ?? [];
   const canShip = status === 'COMPLETED';
-  const operations: any[] = w?.operations ?? [];
-  const timeLogs: any[] = w?.timeLogs ?? [];
-  const totalHours = timeLogs.reduce((s: number, t: any) => s + (t.hours ?? 0), 0);
+  const lines: any[] = w?.lines ?? [];
+  const timeLogs: any[] = w?.timeEntries ?? [];
+  const totalEstMins = lines.reduce((s: number, l: any) => s + (l.estimatedMinutes ?? 0), 0);
+  const totalActMins = lines.reduce((s: number, l: any) => s + (l.actualMinutes ?? 0), 0);
+  const totalEstHours = totalEstMins / 60;
+  const totalActHours = totalActMins / 60;
 
   return (
     <div className="max-w-[1100px] mx-auto animate-fade-in">
@@ -124,49 +155,74 @@ export function WorkOrderDetailPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Operations */}
+        {/* Actions / Operations */}
         <div className="lg:col-span-2 space-y-4">
-          {operations.length > 0 && (
-            <div className="card">
-              <div className="card-header"><span className="text-sm font-semibold">Operations</span></div>
+          <div className="card">
+            <div className="card-header flex items-center justify-between">
+              <span className="text-sm font-semibold">Actions</span>
+              <button className="btn-secondary btn-sm" onClick={() => setActionOpen(true)}>
+                <Plus size={12} /> Add Action
+              </button>
+            </div>
+            {lines.length === 0 ? (
+              <div className="card-body text-center text-sm text-muted-foreground py-8">
+                No actions yet. Add actions to define the steps required to complete this job.
+              </div>
+            ) : (
               <div className="table-container rounded-b-xl">
                 <table className="table">
-                  <thead><tr><th>#</th><th>Operation</th><th>Work Centre</th><th>Est. Hours</th><th>Actual Hrs</th><th>Status</th></tr></thead>
+                  <thead><tr><th>#</th><th>Action</th><th>Work Centre</th><th>Qty</th><th>Est. Time</th><th>Actual</th><th></th></tr></thead>
                   <tbody>
-                    {operations.map((op: any, i: number) => (
-                      <tr key={op.id ?? i}>
-                        <td className="text-xs text-muted-foreground">{i + 1}</td>
-                        <td className="font-medium text-sm">{op.name ?? op.operation}</td>
-                        <td className="text-xs text-muted-foreground">{op.workCenter?.name ?? '—'}</td>
-                        <td className="text-right font-mono text-xs">{op.estimatedHours?.toFixed(1) ?? '—'}</td>
-                        <td className="text-right font-mono text-xs">{op.actualHours?.toFixed(1) ?? '0.0'}</td>
-                        <td><span className={STATUS_BADGE[op.status] ?? 'badge-gray'}>{op.status?.replace(/_/g,' ') ?? '—'}</span></td>
+                    {lines.map((line: any, i: number) => (
+                      <tr key={line.id}>
+                        <td className="text-xs text-muted-foreground">{line.lineNumber ?? i + 1}</td>
+                        <td>
+                          <div className="font-medium text-sm">{line.operation}</div>
+                          {line.description && <div className="text-xs text-muted-foreground mt-0.5">{line.description}</div>}
+                        </td>
+                        <td className="text-xs text-muted-foreground">{line.workCenter?.name ?? '—'}</td>
+                        <td className="text-right font-mono text-xs">{Number(line.qtyRequired)}</td>
+                        <td className="text-right font-mono text-xs">
+                          {line.estimatedMinutes ? `${line.estimatedMinutes}m` : '—'}
+                        </td>
+                        <td className="text-right font-mono text-xs">
+                          {line.actualMinutes ? `${line.actualMinutes}m` : '—'}
+                        </td>
+                        <td className="text-right">
+                          <button
+                            className="text-steel-300 hover:text-red-500 transition-colors"
+                            onClick={() => deleteLineMutation.mutate(line.id)}
+                            disabled={deleteLineMutation.isPending}
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
           {/* Time Logs */}
           <div className="card">
             <div className="card-header">
               <span className="text-sm font-semibold">Time Logs</span>
-              <span className="text-xs text-muted-foreground">{totalHours.toFixed(1)} hrs total</span>
+              <span className="text-xs text-muted-foreground">{totalActHours.toFixed(1)} hrs total</span>
             </div>
             {timeLogs.length === 0 ? (
               <div className="card-body text-center text-sm text-muted-foreground py-8">No time logged yet</div>
             ) : (
               <div className="table-container rounded-b-xl">
                 <table className="table">
-                  <thead><tr><th>Date</th><th>User</th><th className="text-right">Hours</th><th>Notes</th></tr></thead>
+                  <thead><tr><th>Date</th><th>Type</th><th className="text-right">Duration</th><th>Notes</th></tr></thead>
                   <tbody>
                     {timeLogs.map((t: any, i: number) => (
                       <tr key={t.id ?? i}>
-                        <td className="text-xs text-steel-500">{t.logDate ? format(new Date(t.logDate), 'dd MMM yyyy') : '—'}</td>
-                        <td className="text-sm">{t.user?.name ?? t.userName ?? '—'}</td>
-                        <td className="text-right font-mono text-sm font-semibold">{t.hours?.toFixed(1)}</td>
+                        <td className="text-xs text-steel-500">{t.startTime ? format(new Date(t.startTime), 'dd MMM yyyy HH:mm') : '—'}</td>
+                        <td className="text-sm"><span className={t.eventType === 'CHECK_IN' ? 'badge-green' : 'badge-gray'}>{t.eventType?.replace('_', ' ') ?? '—'}</span></td>
+                        <td className="text-right font-mono text-sm">{t.durationMinutes ? `${t.durationMinutes}m` : '—'}</td>
                         <td className="text-xs text-muted-foreground">{t.notes ?? '—'}</td>
                       </tr>
                     ))}
@@ -191,31 +247,31 @@ export function WorkOrderDetailPage() {
             <div className="card-body space-y-2 text-xs">
               <div className="flex justify-between"><span className="text-muted-foreground">WO #</span><span className="font-mono">{w?.workOrderNumber}</span></div>
               <div className="flex justify-between"><span className="text-muted-foreground">Priority</span>
-                <span className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-[11px] font-bold text-white ${(w?.priority ?? 3) <= 2 ? 'bg-green-500' : (w?.priority ?? 3) === 3 ? 'bg-amber-500' : 'bg-red-500'}`}>
-                  {w?.priority ?? 3}
+                <span className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-[11px] font-bold text-white ${(w?.priority ?? 5) <= 3 ? 'bg-green-500' : (w?.priority ?? 5) <= 6 ? 'bg-amber-500' : 'bg-red-500'}`}>
+                  {w?.priority ?? 5}
                 </span>
               </div>
               <div className="flex justify-between"><span className="text-muted-foreground">Customer</span><span className="font-medium">{w?.salesOrder?.customer?.name ?? 'Internal'}</span></div>
               <div className="flex justify-between"><span className="text-muted-foreground">Sales Order</span><span className="font-mono">{w?.salesOrder?.orderNumber ?? '—'}</span></div>
               <div className="flex justify-between"><span className="text-muted-foreground">Scheduled</span><span>{w?.scheduledDate ? format(new Date(w.scheduledDate), 'dd MMM yyyy') : '—'}</span></div>
-              <div className="flex justify-between"><span className="text-muted-foreground">Due</span><span>{w?.dueDate ? format(new Date(w.dueDate), 'dd MMM yyyy') : '—'}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Actions</span><span className="font-mono">{lines.length}</span></div>
             </div>
           </div>
 
           <div className="card">
             <div className="card-header"><Wrench size={13} /><span className="text-sm font-semibold ml-1">Time Summary</span></div>
             <div className="card-body space-y-2 text-sm">
-              <div className="flex justify-between"><span className="text-muted-foreground">Estimated</span><span className="font-mono">{w?.estimatedHours?.toFixed(1) ?? '—'} hrs</span></div>
-              <div className="flex justify-between"><span className="text-muted-foreground">Actual</span><span className="font-mono font-bold">{totalHours.toFixed(1)} hrs</span></div>
-              {w?.estimatedHours && (
+              <div className="flex justify-between"><span className="text-muted-foreground">Estimated</span><span className="font-mono">{totalEstMins > 0 ? `${totalEstHours.toFixed(1)} hrs` : '—'}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Actual</span><span className="font-mono font-bold">{totalActHours.toFixed(1)} hrs</span></div>
+              {totalEstMins > 0 && (
                 <div className="mt-2">
                   <div className="flex justify-between text-xs mb-1">
                     <span className="text-muted-foreground">Progress</span>
-                    <span>{Math.min(100, Math.round((totalHours / w.estimatedHours) * 100))}%</span>
+                    <span>{Math.min(100, Math.round((totalActMins / totalEstMins) * 100))}%</span>
                   </div>
                   <div className="h-2 bg-steel-100 rounded-full overflow-hidden">
                     <div className="h-full bg-primary-600 rounded-full transition-all"
-                      style={{ width: `${Math.min(100, (totalHours / w.estimatedHours) * 100)}%` }} />
+                      style={{ width: `${Math.min(100, (totalActMins / totalEstMins) * 100)}%` }} />
                   </div>
                 </div>
               )}
@@ -258,6 +314,52 @@ export function WorkOrderDetailPage() {
             <label className="label">Notes</label>
             <textarea className="input min-h-[70px] resize-none" value={timeForm.notes}
               onChange={(e) => setTimeForm({ ...timeForm, notes: e.target.value })} placeholder="What was done…" />
+          </div>
+        </div>
+      </Modal>
+
+      {/* Add Action Modal */}
+      <Modal open={actionOpen} onClose={() => setActionOpen(false)} title="Add Action"
+        footer={<>
+          <button className="btn-secondary btn-sm" onClick={() => setActionOpen(false)}>Cancel</button>
+          <button className="btn-primary btn-sm" disabled={!actionForm.operation || addLineMutation.isPending} onClick={() => addLineMutation.mutate()}>
+            {addLineMutation.isPending ? 'Adding…' : 'Add Action'}
+          </button>
+        </>}>
+        <div className="space-y-4">
+          <div className="form-group">
+            <label className="label">Operation *</label>
+            <input className="input" value={actionForm.operation}
+              onChange={(e) => setActionForm({ ...actionForm, operation: e.target.value })}
+              placeholder="e.g. Cut to size, Drill holes, Bend…" />
+          </div>
+          <div className="form-group">
+            <label className="label">Description</label>
+            <textarea className="input min-h-[60px] resize-none" value={actionForm.description}
+              onChange={(e) => setActionForm({ ...actionForm, description: e.target.value })}
+              placeholder="Additional details…" />
+          </div>
+          <div className="form-group">
+            <label className="label">Work Centre</label>
+            <select className="input" value={actionForm.workCenterId} onChange={(e) => setActionForm({ ...actionForm, workCenterId: e.target.value })}>
+              <option value="">None</option>
+              {workCenters.map((wc: any) => (
+                <option key={wc.id} value={wc.id}>{wc.code} — {wc.name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="form-group">
+              <label className="label">Qty Required</label>
+              <input type="number" className="input" min="1" value={actionForm.qtyRequired}
+                onChange={(e) => setActionForm({ ...actionForm, qtyRequired: e.target.value })} />
+            </div>
+            <div className="form-group">
+              <label className="label">Est. Minutes</label>
+              <input type="number" className="input" min="0" step="15" value={actionForm.estimatedMinutes}
+                onChange={(e) => setActionForm({ ...actionForm, estimatedMinutes: e.target.value })}
+                placeholder="e.g. 60" />
+            </div>
           </div>
         </div>
       </Modal>

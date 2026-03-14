@@ -613,11 +613,70 @@ async function main() {
   console.log('✔ Sample quotes seeded:', quoteCount);
 
   // ── Sample Work Orders ────────────────────────────────────────────────────
+  // Fetch work centres by code for referencing in WO lines
+  const wcByCode: Record<string, string> = {};
+  const allWCs = await prisma.workCenter.findMany({ where: { companyId: company.id } });
+  for (const wc of allWCs) wcByCode[wc.code] = wc.id;
+
+  // Example actions per work order (varying by WO to be realistic)
+  const woActionTemplates: { operation: string; description: string; wcCode: string; estMin: number }[][] = [
+    [ // WO-000001: Plate cutting job
+      { operation: 'Cut to size', description: 'Cut 10mm plate to 1200x2400 dimensions', wcCode: 'SAW-01', estMin: 45 },
+      { operation: 'Deburr edges', description: 'Remove burrs and sharp edges after cutting', wcCode: 'GRIND-01', estMin: 30 },
+      { operation: 'Drill mounting holes', description: 'Drill 4x 12mm holes per spec drawing', wcCode: 'DRILL-01', estMin: 60 },
+    ],
+    [ // WO-000002: Angle cutting + bending
+      { operation: 'Shear angles', description: 'Shear 75x75x6 angle to 3m lengths', wcCode: 'SHEAR-01', estMin: 30 },
+      { operation: 'Bend to profile', description: 'Press brake bend per drawing REV-B', wcCode: 'PRESS-01', estMin: 90 },
+      { operation: 'Quality inspection', description: 'Verify dimensions against spec', wcCode: 'GRIND-01', estMin: 20 },
+    ],
+    [ // WO-000003: Full fabrication
+      { operation: 'Cut flat bar', description: 'Cut 50x10 flat bar to 600mm lengths', wcCode: 'SAW-01', estMin: 25 },
+      { operation: 'Drill bolt holes', description: 'Drill 6x M16 clearance holes', wcCode: 'DRILL-01', estMin: 45 },
+      { operation: 'Bend brackets', description: 'Form 90-degree brackets on press brake', wcCode: 'PRESS-01', estMin: 60 },
+      { operation: 'Grind welds', description: 'Grind flush and prep for coating', wcCode: 'GRIND-01', estMin: 40 },
+    ],
+    [ // WO-000004: Beam processing
+      { operation: 'Cut beams', description: 'Cut 200UB to 4.5m lengths', wcCode: 'SAW-01', estMin: 60 },
+      { operation: 'Drill connection holes', description: 'Drill bolt holes per connection detail', wcCode: 'DRILL-01', estMin: 90 },
+      { operation: 'Surface prep', description: 'Grind and surface prep for galvanising', wcCode: 'GRIND-01', estMin: 45 },
+    ],
+    [ // WO-000005: Sheet shearing
+      { operation: 'Shear sheets', description: 'Shear 2mm sheet to 500x300 blanks', wcCode: 'SHEAR-01', estMin: 35 },
+      { operation: 'Press form', description: 'Form channel profile on press brake', wcCode: 'PRESS-01', estMin: 75 },
+    ],
+    [ // WO-000006: Simple cut job
+      { operation: 'Band saw cut', description: 'Cut RHS 100x50x3 to 2.4m lengths x20', wcCode: 'SAW-01', estMin: 40 },
+      { operation: 'Deburr ends', description: 'Clean cut ends and remove burrs', wcCode: 'GRIND-01', estMin: 20 },
+    ],
+    [ // WO-000007: Complex plate work
+      { operation: 'Profile cut', description: 'Cut 16mm plate per DXF nesting layout', wcCode: 'SAW-01', estMin: 90 },
+      { operation: 'Drill holes', description: 'Drill anchor bolt pattern 8x M20', wcCode: 'DRILL-01', estMin: 60 },
+      { operation: 'Bend base plates', description: 'Form stiffener bends at 45 degrees', wcCode: 'PRESS-01', estMin: 45 },
+      { operation: 'Final grinding', description: 'Grind all edges and weld preps', wcCode: 'GRIND-01', estMin: 30 },
+    ],
+    [ // WO-000008: Shearing + drilling
+      { operation: 'Shear to size', description: 'Shear 3mm plate to 400x200 blanks', wcCode: 'SHEAR-01', estMin: 25 },
+      { operation: 'Drill fixing holes', description: 'Drill 4x 10mm holes per template', wcCode: 'DRILL-01', estMin: 30 },
+      { operation: 'Countersink', description: 'Countersink all holes for flush fasteners', wcCode: 'DRILL-01', estMin: 20 },
+    ],
+    [ // WO-000009: Structural member processing
+      { operation: 'Cut channels', description: 'Cut 250PFC to 6m lengths', wcCode: 'SAW-01', estMin: 50 },
+      { operation: 'Drill web holes', description: 'Drill service penetration holes', wcCode: 'DRILL-01', estMin: 40 },
+    ],
+    [ // WO-000010: Misc processing
+      { operation: 'Cut flats', description: 'Cut 100x12 flat bar to 1.5m lengths', wcCode: 'SAW-01', estMin: 20 },
+      { operation: 'Shear gussets', description: 'Shear triangular gusset plates from 10mm', wcCode: 'SHEAR-01', estMin: 35 },
+      { operation: 'Bend cleats', description: 'Form 90-degree angle cleats', wcCode: 'PRESS-01', estMin: 40 },
+    ],
+  ];
+
   const woStatuses = ['DRAFT', 'SCHEDULED', 'IN_PROGRESS', 'IN_PROGRESS', 'SCHEDULED', 'COMPLETED', 'IN_PROGRESS', 'DRAFT', 'COMPLETED', 'SCHEDULED'];
   for (let i = 0; i < 10; i++) {
     const woNum = `WO-${String(i + 1).padStart(6, '0')}`;
     const existing = await prisma.workOrder.findFirst({ where: { companyId: company.id, workOrderNumber: woNum } });
     if (!existing) {
+      const actions = woActionTemplates[i] ?? [];
       await prisma.workOrder.create({
         data: {
           companyId: company.id,
@@ -630,11 +689,41 @@ async function main() {
           notes: `Work order ${i + 1} — cutting and processing`,
           createdBy: adminUser.id,
           updatedBy: adminUser.id,
+          lines: {
+            create: actions.map((a, idx) => ({
+              lineNumber: idx + 1,
+              operation: a.operation,
+              description: a.description,
+              workCenterId: wcByCode[a.wcCode] ?? null,
+              qtyRequired: 1,
+              estimatedMinutes: a.estMin,
+            })),
+          },
         },
       });
+    } else {
+      // Add lines to existing WOs that have none
+      const lineCount = await prisma.workOrderLine.count({ where: { workOrderId: existing.id } });
+      if (lineCount === 0) {
+        const actions = woActionTemplates[i] ?? [];
+        for (let idx = 0; idx < actions.length; idx++) {
+          const a = actions[idx];
+          await prisma.workOrderLine.create({
+            data: {
+              workOrderId: existing.id,
+              lineNumber: idx + 1,
+              operation: a.operation,
+              description: a.description,
+              workCenterId: wcByCode[a.wcCode] ?? null,
+              qtyRequired: 1,
+              estimatedMinutes: a.estMin,
+            },
+          });
+        }
+      }
     }
   }
-  console.log('✔ Work orders seeded: 10');
+  console.log('✔ Work orders seeded with actions: 10');
 
   // ── Sample Shipping Manifests ─────────────────────────────────────────────
   const manifestStatuses = ['PENDING', 'PENDING', 'SHIPPED', 'DELIVERED', 'DELIVERED', 'SHIPPED', 'PENDING', 'DELIVERED'];
