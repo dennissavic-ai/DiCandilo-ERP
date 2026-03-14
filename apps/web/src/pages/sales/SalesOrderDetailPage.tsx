@@ -60,9 +60,9 @@ export function SalesOrderDetailPage() {
       const woLines = (o?.lines ?? []).map((l: any, i: number) => ({
         lineNumber: i + 1,
         productId: l.productId,
+        operation: l.description || 'Process',
         description: l.description,
         qtyRequired: parseFloat(l.qtyOrdered ?? 0),
-        uom: l.uom,
       }));
       return processingApi.createWorkOrder({
         salesOrderId: id,
