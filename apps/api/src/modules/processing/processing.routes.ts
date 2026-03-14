@@ -452,7 +452,7 @@ export const processingRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       // Resolve work center (optional)
-      let workCenter = null;
+      let workCenter: any = null;
       if (body.stationBarcode) {
         workCenter = await prisma.workCenter.findFirst({
           where: {

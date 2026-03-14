@@ -55,6 +55,18 @@ const NAV_GROWTH: NavItem[] = [
       { label: 'Price Books',  to: '/sales/price-books', icon: Tag },
     ],
   },
+  {
+    label: 'Operations', icon: Wrench,
+    children: [
+      { label: 'Dashboard',     to: '/processing/dashboard',     icon: Activity },
+      { label: 'Work Orders',   to: '/processing/work-orders',   icon: ClipboardList },
+      { label: 'Kanban Board',  to: '/processing/kanban',        icon: Kanban },
+      { label: 'Planning',      to: '/processing/planning',      icon: Sparkles },
+      { label: 'Time Tracking', to: '/processing/time-tracking', icon: Clock },
+      { label: 'Scheduling',    to: '/processing/schedule',      icon: BarChart3 },
+      { label: 'Dispatch',      to: '/shipping',                 icon: Truck },
+    ],
+  },
 ];
 
 const NAV_OPS: NavItem[] = [
@@ -73,21 +85,9 @@ const NAV_OPS: NavItem[] = [
       { label: 'Stock on Hand',    to: '/inventory',                  icon: Layers },
       { label: 'Transfer Stock',   to: '/inventory/transfer',         icon: ArrowLeftRight },
       { label: 'Barcodes',          to: '/inventory/barcodes',         icon: QrCode },
+      { label: 'Receive Stock',    to: '/inventory/receive',          icon: Package },
       { label: 'Auto Fulfillment', to: '/inventory/auto-fulfillment', icon: Zap },
       { label: 'Adjust Stock',     to: '/inventory/adjust',           icon: Settings },
-    ],
-  },
-  {
-    label: 'Operations', icon: Wrench,
-    children: [
-      { label: 'Dashboard',     to: '/processing/dashboard',     icon: Activity },
-      { label: 'Work Orders',   to: '/processing/work-orders',   icon: ClipboardList },
-      { label: 'Kanban Board',  to: '/processing/kanban',        icon: Kanban },
-      { label: 'Receive Stock', to: '/inventory/receive',        icon: Package },
-      { label: 'Planning',      to: '/processing/planning',      icon: Sparkles },
-      { label: 'Time Tracking', to: '/processing/time-tracking', icon: Clock },
-      { label: 'Scheduling',    to: '/processing/schedule',      icon: BarChart3 },
-      { label: 'Dispatch',      to: '/shipping',                 icon: Truck },
     ],
   },
   { label: 'Value Stream Map', to: '/leadership/value-stream-map', icon: GitFork },
