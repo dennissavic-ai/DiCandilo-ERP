@@ -13,8 +13,8 @@ const planning: FastifyPluginAsync = async (fastify) => {
       where: { companyId: user.companyId, deletedAt: null },
       include: {
         salesOrder: { select: { orderNumber: true, customer: { select: { name: true } } } },
-        jobPlan: { select: { id: true, status: true } },
-        lines: { select: { id: true, operation: true, estimatedMinutes: true } },
+        jobPlan: { select: { id: true, status: true, scheduleBlocks: { select: { id: true } } } },
+        lines: { select: { id: true, operation: true, description: true, estimatedMinutes: true, workCenterId: true, workCenter: { select: { id: true, code: true, name: true } } }, orderBy: { lineNumber: 'asc' } },
       },
       orderBy: [{ priority: 'asc' }, { scheduledDate: 'asc' }, { createdAt: 'desc' }],
     });
@@ -43,7 +43,7 @@ const planning: FastifyPluginAsync = async (fastify) => {
           select: {
             orderNumber: true,
             customer: { select: { name: true } },
-            lines: { select: { description: true, qty: true, uom: true } },
+            lines: { select: { description: true, qtyOrdered: true, uom: true } },
           },
         },
         lines: { include: { workCenter: true } },
