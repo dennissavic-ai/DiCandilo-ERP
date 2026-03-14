@@ -465,6 +465,24 @@ Describe what the future state VSM should look like — which steps to combine, 
     const user = (request as any).user;
     const companyId = user.companyId;
 
+    // Remove any previously-seeded example maps (idempotent reload)
+    const EXAMPLE_NAMES = [
+      'Order to Delivery',
+      'Procurement & Replenishment',
+      'Cut-to-Length Processing',
+      'Quote to Cash',
+      'Returns & Non-Conformance',
+    ];
+    const oldMaps = await (prisma as any).valueStreamMap.findMany({
+      where: { companyId, name: { in: EXAMPLE_NAMES } },
+      select: { id: true },
+    });
+    if (oldMaps.length > 0) {
+      const oldIds = oldMaps.map((m: any) => m.id);
+      await (prisma as any).vSMNode.deleteMany({ where: { mapId: { in: oldIds } } });
+      await (prisma as any).valueStreamMap.deleteMany({ where: { id: { in: oldIds } } });
+    }
+
     // Helper: encode (x,y) position + extra metrics into the notes field
     function mkNotes(x: number, y: number, extras: string[]): string {
       const prefix = `{"_x":${x},"_y":${y}}`;
