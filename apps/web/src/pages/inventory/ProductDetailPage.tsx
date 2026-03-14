@@ -97,7 +97,7 @@ export function ProductDetailPage() {
               <h3 className="font-semibold">Product Details</h3>
             </div>
             <div className="card-body">
-              <div className="grid grid-cols-2 gap-x-8 gap-y-3 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3 text-sm">
                 {[
                   { label: 'Product Code', value: product.code, icon: Tag },
                   { label: 'Category', value: (product.category as { name: string } | undefined)?.name ?? '—', icon: Package },
@@ -129,7 +129,7 @@ export function ProductDetailPage() {
               <h3 className="font-semibold">Standard Dimensions</h3>
             </div>
             <div className="card-body">
-              <div className="grid grid-cols-4 gap-4 text-sm">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
                 {[
                   { label: 'Thickness', value: mmDisplay(product.standardThickness) },
                   { label: 'Width', value: mmDisplay(product.standardWidth) },

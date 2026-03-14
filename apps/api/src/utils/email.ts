@@ -378,6 +378,59 @@ export function prospectStageTemplate(data: ProspectStageTemplateData): string {
   return emailLayout(body);
 }
 
+// ─── Template: Invoice Follow-Up ──────────────────────────────────────────
+
+export interface InvoiceFollowUpTemplateData {
+  invoiceNumber: string;
+  customerName: string;
+  dueDate: string;
+  daysOverdue: number;
+  totalAmount: number; // cents as number
+  balanceDue: number;  // cents as number
+  currencyCode: string;
+}
+
+export function invoiceFollowUpTemplate(data: InvoiceFollowUpTemplateData): string {
+  const total = formatCurrency(data.totalAmount, data.currencyCode);
+  const balance = formatCurrency(data.balanceDue, data.currencyCode);
+  const urgencyColor = data.daysOverdue >= 21 ? '#dc2626' : data.daysOverdue >= 14 ? '#ea580c' : '#d97706';
+
+  const body = `
+    <p style="margin:0 0 8px;font-size:15px;color:#475569;">Dear <strong>${escapeHtml(data.customerName)}</strong>,</p>
+    <p style="margin:0 0 24px;font-size:15px;color:#475569;">
+      This is a friendly reminder that the following invoice is now <strong>${data.daysOverdue} day${data.daysOverdue !== 1 ? 's' : ''} past due</strong>.
+    </p>
+
+    <!-- Overdue Banner -->
+    <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:16px 20px;margin-bottom:24px;text-align:center;">
+      <p style="margin:0;font-size:16px;font-weight:700;color:${urgencyColor};">
+        &#9888; Payment is ${data.daysOverdue} day${data.daysOverdue !== 1 ? 's' : ''} overdue
+      </p>
+      <p style="margin:6px 0 0;font-size:13px;color:#991b1b;">Due date: <strong>${escapeHtml(data.dueDate)}</strong></p>
+    </div>
+
+    <!-- Invoice Card -->
+    <div style="background:#f8fafc;border-left:4px solid ${urgencyColor};border-radius:4px;padding:20px 24px;margin-bottom:24px;">
+      <p style="margin:0 0 6px;font-size:12px;color:#64748b;text-transform:uppercase;letter-spacing:1px;font-weight:600;">Invoice Number</p>
+      <p style="margin:0 0 12px;font-size:24px;font-weight:700;color:#1e293b;">${escapeHtml(data.invoiceNumber)}</p>
+      <p style="margin:0;font-size:14px;color:#64748b;">
+        Invoice Total: <strong style="color:#1e293b;">${total}</strong>
+      </p>
+      <p style="margin:8px 0 0;font-size:14px;color:#64748b;">
+        Balance Due: <strong style="color:${urgencyColor};">${balance}</strong>
+      </p>
+    </div>
+
+    <p style="margin:0 0 8px;font-size:14px;color:#475569;">
+      If payment has already been made, please disregard this notice. Otherwise, we kindly request that you arrange payment at your earliest convenience.
+    </p>
+    <p style="margin:24px 0 0;font-size:14px;color:#64748b;">
+      If you have any questions about this invoice, please contact our accounts team.
+    </p>`;
+
+  return emailLayout(body);
+}
+
 // ─── Internal Utility ─────────────────────────────────────────────────────────
 
 function escapeHtml(str: string): string {

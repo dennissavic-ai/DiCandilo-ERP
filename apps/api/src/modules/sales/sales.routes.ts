@@ -42,8 +42,7 @@ async function generateSequentialNumber(
 const VALID_SO_TRANSITIONS: Record<string, string[]> = {
   DRAFT: ['CONFIRMED', 'CANCELLED'],
   CONFIRMED: ['IN_PRODUCTION', 'READY_TO_SHIP', 'CANCELLED'],
-  IN_PRODUCTION: ['READY_TO_SHIP', 'ON_HOLD', 'CANCELLED'],
-  ON_HOLD: ['IN_PRODUCTION', 'CANCELLED'],
+  IN_PRODUCTION: ['READY_TO_SHIP', 'CANCELLED'],
   READY_TO_SHIP: ['SHIPPED', 'CANCELLED'],
   SHIPPED: ['INVOICED'],
   INVOICED: ['CLOSED'],
@@ -247,7 +246,17 @@ export const salesRoutes: FastifyPluginAsync = async (fastify) => {
         notes: z.string().optional(),
         isActive: z.boolean().optional(),
       }).parse(request.body);
-      const updated = await prisma.customer.update({ where: { id }, data: { ...updateBody, updatedBy: sub } });
+      const { billingAddress, shippingAddress, contacts, ...rest } = updateBody;
+      const updated = await prisma.customer.update({
+        where: { id },
+        data: {
+          ...rest,
+          ...(billingAddress !== undefined && { billingAddress: billingAddress as any }),
+          ...(shippingAddress !== undefined && { shippingAddress: shippingAddress as any }),
+          ...(contacts !== undefined && { contacts: contacts as any }),
+          updatedBy: sub,
+        },
+      });
       return updated;
     } catch (err) { return handleError(reply, err); }
   });
@@ -659,7 +668,7 @@ export const salesRoutes: FastifyPluginAsync = async (fastify) => {
       const { companyId, sub } = request.user as { companyId: string; sub: string };
       const { id } = request.params as { id: string };
       const { status } = z.object({
-        status: z.enum(['DRAFT', 'CONFIRMED', 'IN_PRODUCTION', 'READY_TO_SHIP', 'SHIPPED', 'INVOICED', 'CANCELLED', 'CLOSED', 'ON_HOLD']),
+        status: z.enum(['DRAFT', 'CONFIRMED', 'IN_PRODUCTION', 'READY_TO_SHIP', 'PARTIALLY_SHIPPED', 'SHIPPED', 'INVOICED', 'CANCELLED', 'CLOSED']),
       }).parse(request.body);
       const so = await prisma.salesOrder.findFirst({ where: { id, companyId, deletedAt: null } });
       if (!so) throw new NotFoundError('SalesOrder', id);

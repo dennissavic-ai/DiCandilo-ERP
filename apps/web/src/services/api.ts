@@ -132,6 +132,7 @@ export const inventoryApi = {
   generateBarcode: (data: object) => api.post('/barcodes/generate', data),
   scanBarcode: (data: string) => api.post('/barcodes/scan', { data }),
   getProductBarcodeLabel: (productId: string) => api.get(`/barcodes/products/${productId}/label`),
+  getBatchBarcodeLabels: (productIds: string[]) => api.post('/barcodes/products/labels/batch', { productIds }),
 };
 
 // Sales
@@ -198,6 +199,7 @@ export const accountingApi = {
 // Reporting
 export const reportingApi = {
   getDashboard: () => api.get('/reporting/dashboard'),
+  getKpis: () => api.get('/reporting/kpis'),
   getSalesReport: (params: object) => api.get('/reporting/sales', { params }),
   getInventoryReport: (params: object) => api.get('/reporting/inventory', { params }),
   getPurchasingReport: (params: object) => api.get('/reporting/purchasing', { params }),
@@ -326,6 +328,7 @@ export const vsmApi = {
   reorderNodes:(id: string, nodeIds: string[]) => api.put(`/vsm/${id}/nodes/reorder`, { nodeIds }),
   promote:     (id: string)     => api.post(`/vsm/${id}/promote`),
   analyzeMap:  (id: string)     => api.post(`/vsm/${id}/analyze`),
+  seedExamples:()               => api.post('/vsm/seed-examples'),
 };
 
 // Automation

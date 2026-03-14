@@ -71,7 +71,7 @@ export function PriceBooksPage() {
         <button className="btn-primary btn-sm" onClick={() => openBookEdit()}><Plus size={13} /> New Price Book</button>
       </div>
 
-      <div className="grid grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Price book list */}
         <div>
           <div className="card overflow-hidden">

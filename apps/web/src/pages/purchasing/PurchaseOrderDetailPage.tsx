@@ -115,8 +115,8 @@ export function PurchaseOrderDetailPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-6">
-        <div className="col-span-2 space-y-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-4">
           <div className="card">
             <div className="card-header">
               <span className="text-sm font-semibold">Lines</span>

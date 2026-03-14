@@ -24,18 +24,15 @@ interface NavItem {
 
 const NAV_LEADERSHIP: NavItem[] = [
   { label: 'Dashboard', to: '/', icon: Gauge, end: true },
-  {
-    label: 'Accounting', icon: DollarSign,
-    children: [
-      { label: 'Dashboard',         to: '/accounting/dashboard',         icon: Activity },
-      { label: 'Invoices',          to: '/accounting/invoices',          icon: FileText },
-      { label: 'Cash Flow',         to: '/accounting/cashflow',          icon: TrendingUp },
-      { label: 'AR Ageing',         to: '/accounting/ar-ageing',         icon: BarChart3 },
-      { label: 'Chart of Accounts', to: '/accounting/chart-of-accounts', icon: BookOpen },
-    ],
-  },
-  { label: 'Value Stream Map', to: '/leadership/value-stream-map', icon: GitFork },
   { label: 'Users', to: '/admin/users', icon: Users },
+];
+
+const NAV_FINANCE: NavItem[] = [
+  { label: 'Dashboard',         to: '/accounting/dashboard',         icon: Activity },
+  { label: 'Invoices',          to: '/accounting/invoices',          icon: FileText },
+  { label: 'Cash Flow',         to: '/accounting/cashflow',          icon: TrendingUp },
+  { label: 'AR Ageing',         to: '/accounting/ar-ageing',         icon: BarChart3 },
+  { label: 'Chart of Accounts', to: '/accounting/chart-of-accounts', icon: BookOpen },
 ];
 
 const NAV_GROWTH: NavItem[] = [
@@ -75,6 +72,7 @@ const NAV_OPS: NavItem[] = [
       { label: 'Products',         to: '/inventory/products',         icon: Package },
       { label: 'Stock on Hand',    to: '/inventory',                  icon: Layers },
       { label: 'Transfer Stock',   to: '/inventory/transfer',         icon: ArrowLeftRight },
+      { label: 'Barcodes',          to: '/inventory/barcodes',         icon: QrCode },
       { label: 'Auto Fulfillment', to: '/inventory/auto-fulfillment', icon: Zap },
       { label: 'Adjust Stock',     to: '/inventory/adjust',           icon: Settings },
     ],
@@ -92,7 +90,7 @@ const NAV_OPS: NavItem[] = [
       { label: 'Dispatch',      to: '/shipping',                 icon: Truck },
     ],
   },
-  { label: 'Scan Barcode', to: '/scan', icon: QrCode },
+  { label: 'Value Stream Map', to: '/leadership/value-stream-map', icon: GitFork },
 ];
 
 function useGroupActive(children: NavChild[]) {
@@ -173,11 +171,15 @@ function renderItems(items: NavItem[]) {
   );
 }
 
-export function Sidebar() {
+export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
   return (
     <aside
       className="w-[220px] flex-shrink-0 flex flex-col h-full overflow-hidden select-none"
       style={{ background: 'hsl(var(--sidebar-background))' }}
+      onClick={(e) => {
+        // Close mobile drawer when a link is clicked
+        if ((e.target as HTMLElement).closest('a')) onNavigate?.();
+      }}
     >
       {/* Logo */}
       <div className="flex items-center gap-3 px-4 py-[18px] border-b border-white/[0.07]">
@@ -207,6 +209,9 @@ export function Sidebar() {
       <nav className="flex-1 overflow-y-auto py-2 px-2 space-y-px">
         <SectionLabel label="Leadership" />
         {renderItems(NAV_LEADERSHIP)}
+
+        <SectionLabel label="Finance" />
+        {renderItems(NAV_FINANCE)}
 
         <SectionLabel label="Growth" />
         {renderItems(NAV_GROWTH)}

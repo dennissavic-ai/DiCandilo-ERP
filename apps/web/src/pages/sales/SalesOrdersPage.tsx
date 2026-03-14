@@ -243,7 +243,7 @@ export function SalesOrdersPage() {
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         <div className="stat-card">
           <div className="text-xl font-bold tabular-nums">{totalOpen}</div>
           <div className="text-xs text-muted-foreground">Open Orders</div>
@@ -422,7 +422,7 @@ export function SalesOrdersPage() {
                     </div>
                     <div className="space-y-2">
                       {lines.map((line, i) => (
-                        <div key={i} className="grid grid-cols-[1fr_1fr_80px_100px_32px] gap-2 items-center">
+                        <div key={i} className="grid grid-cols-2 sm:grid-cols-[1fr_1fr_80px_100px_32px] gap-2 items-center">
                           <ProductSearchSelect
                             products={productsData?.data ?? []}
                             value={line.productId}

@@ -57,7 +57,7 @@ export function CustomerPortalPage() {
         </div>
 
         {/* Quick stats */}
-        <div className="grid grid-cols-3 gap-4 mt-6">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-6">
           {[
             { label: 'Open Orders', value: openOrders.length, icon: Package },
             { label: 'Open Quotes', value: quotes.filter((q) => ['DRAFT','SENT'].includes(q.status)).length, icon: FileText },

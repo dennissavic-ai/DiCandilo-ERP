@@ -65,7 +65,7 @@ export function StockTransferPage() {
         <button className="btn-primary btn-sm" onClick={() => openTransfer()}><Plus size={13} /> New Transfer</button>
       </div>
 
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Stock on hand by location */}
         <div className="space-y-3">
           <div className="card">

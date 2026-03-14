@@ -25,6 +25,10 @@ const TRIGGER_META: TriggerMeta[] = [
   { trigger: 'QUOTE_FOLLOWUP_3D',     label: 'Quote Follow-up (3 days)', group: 'Lead Nurturing' },
   { trigger: 'QUOTE_FOLLOWUP_7D',     label: 'Quote Follow-up (7 days)', group: 'Lead Nurturing' },
   { trigger: 'QUOTE_EXPIRY_WARNING',  label: 'Quote Expiry Warning',     group: 'Lead Nurturing' },
+  { trigger: 'INVOICE_FOLLOWUP_7D',   label: 'Invoice Follow-up (7 days)',  group: 'Invoice Follow-Up' },
+  { trigger: 'INVOICE_FOLLOWUP_14D',  label: 'Invoice Follow-up (14 days)', group: 'Invoice Follow-Up' },
+  { trigger: 'INVOICE_FOLLOWUP_21D',  label: 'Invoice Follow-up (21 days)', group: 'Invoice Follow-Up' },
+  { trigger: 'INVOICE_FOLLOWUP_30D',  label: 'Invoice Follow-up (30 days)', group: 'Invoice Follow-Up' },
 ];
 
 // ── Toggle Switch ──────────────────────────────────────────────────────────────

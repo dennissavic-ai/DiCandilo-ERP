@@ -392,7 +392,7 @@ export function InvoicesPage() {
                 </div>
                 <div className="space-y-2">
                   {arLines.map((line, i) => (
-                    <div key={i} className="grid grid-cols-[1fr_80px_100px_32px] gap-2 items-center">
+                    <div key={i} className="grid grid-cols-2 sm:grid-cols-[1fr_80px_100px_32px] gap-2 items-center">
                       <input className="input text-sm" placeholder="Description" value={line.description}
                         onChange={e => setArLines(ls => ls.map((l, j) => j === i ? { ...l, description: e.target.value } : l))} />
                       <input className="input text-sm" type="number" placeholder="Qty" value={line.qty}

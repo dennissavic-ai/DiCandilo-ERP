@@ -372,4 +372,321 @@ export const reportingRoutes: FastifyPluginAsync = async (fastify) => {
       return { count: suggestions.length, suggestions };
     } catch (err) { return handleError(reply, err); }
   });
+
+  // ── KPI Fundamentals ─────────────────────────────────────────────────────────
+  // Aggregated business KPIs for the main dashboard KPI section.
+
+  fastify.get('/kpis', { preHandler: [authenticate] }, async (request, reply) => {
+    try {
+      const { companyId } = request.user as { companyId: string };
+      const now = new Date();
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const prevMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+      const yearStart = new Date(now.getFullYear(), 0, 1);
+
+      const [
+        // Revenue
+        revenueThisMonth,
+        revenuePrevMonth,
+        revenueYTD,
+        // Revenue target — use this-month invoice total vs last-month invoice total as proxy
+        invoicedThisMonth,
+
+        // Sales counts
+        salesCountThisMonth,
+        salesCountPrevMonth,
+
+        // Sales orders ready for dispatch
+        readyToShipOrders,
+
+        // Work center utilisation — time entries this month
+        workCenters,
+        timeEntriesThisMonth,
+
+        // Gross margin (revenue vs COGS) — invoice lines vs product cost
+        invoiceLinesThisMonth,
+
+        // On-time delivery — orders shipped on or before scheduledDate
+        shippedOrdersThisMonth,
+
+        // Quote conversion — quotes accepted vs total quotes this month
+        quotesThisMonth,
+        quotesWonThisMonth,
+
+        // Average order value this month
+        // (reuse salesCountThisMonth + revenueThisMonth)
+
+        // Inventory turnover — COGS YTD / avg inventory value
+        cogsYTD,
+        currentInventoryValue,
+
+        // Overdue AR
+        overdueAR,
+
+        // Open backlog value
+        openBacklogValue,
+      ] = await Promise.all([
+        // Revenue this month (from invoices, which represent recognised revenue)
+        prisma.invoice.aggregate({
+          where: { companyId, invoiceDate: { gte: monthStart }, status: { notIn: ['CANCELLED', 'WRITTEN_OFF'] }, deletedAt: null },
+          _sum: { totalAmount: true },
+        }),
+        // Revenue previous month
+        prisma.invoice.aggregate({
+          where: { companyId, invoiceDate: { gte: prevMonthStart, lte: prevMonthEnd }, status: { notIn: ['CANCELLED', 'WRITTEN_OFF'] }, deletedAt: null },
+          _sum: { totalAmount: true },
+        }),
+        // Revenue YTD
+        prisma.invoice.aggregate({
+          where: { companyId, invoiceDate: { gte: yearStart }, status: { notIn: ['CANCELLED', 'WRITTEN_OFF'] }, deletedAt: null },
+          _sum: { totalAmount: true },
+        }),
+        // Invoiced this month count
+        prisma.invoice.count({
+          where: { companyId, invoiceDate: { gte: monthStart }, status: { notIn: ['CANCELLED', 'WRITTEN_OFF'] }, deletedAt: null },
+        }),
+
+        // Sales order count this month
+        prisma.salesOrder.aggregate({
+          where: { companyId, orderDate: { gte: monthStart }, deletedAt: null, status: { notIn: ['CANCELLED'] } },
+          _count: { id: true },
+          _sum: { totalAmount: true },
+        }),
+        // Sales order count prev month
+        prisma.salesOrder.aggregate({
+          where: { companyId, orderDate: { gte: prevMonthStart, lte: prevMonthEnd }, deletedAt: null, status: { notIn: ['CANCELLED'] } },
+          _count: { id: true },
+        }),
+
+        // Sales orders ready for dispatch (READY_TO_SHIP status) with their work orders
+        prisma.salesOrder.findMany({
+          where: { companyId, status: 'READY_TO_SHIP', deletedAt: null },
+          select: { id: true, orderNumber: true, totalAmount: true, customer: { select: { name: true } } },
+        }),
+
+        // All active work centers
+        prisma.workCenter.findMany({
+          where: { companyId, deletedAt: null, isActive: true },
+          select: { id: true, code: true, name: true, type: true },
+        }),
+
+        // Time entries this month (to calculate machine utilisation)
+        prisma.jobTimeEntry.findMany({
+          where: { companyId, scannedAt: { gte: monthStart }, workCenterId: { not: null } },
+          select: { workCenterId: true, eventType: true, scannedAt: true, workOrderId: true },
+          orderBy: { scannedAt: 'asc' },
+        }),
+
+        // Invoice lines this month for gross margin calc
+        prisma.invoiceLine.findMany({
+          where: {
+            invoice: { companyId, invoiceDate: { gte: monthStart }, status: { notIn: ['CANCELLED', 'WRITTEN_OFF'] }, deletedAt: null },
+          },
+          select: { lineTotal: true, qty: true },
+        }),
+
+        // Shipped orders this month for on-time delivery
+        prisma.salesOrder.findMany({
+          where: {
+            companyId,
+            deletedAt: null,
+            status: { in: ['SHIPPED', 'INVOICED', 'CLOSED'] },
+            updatedAt: { gte: monthStart },
+          },
+          select: {
+            id: true,
+            requiredDate: true,
+            workOrders: { select: { completedDate: true }, where: { deletedAt: null } },
+          },
+        }),
+
+        // Quotes this month
+        prisma.salesQuote.count({
+          where: { companyId, quoteDate: { gte: monthStart }, deletedAt: null },
+        }),
+        // Quotes won (converted) this month
+        prisma.salesQuote.count({
+          where: { companyId, quoteDate: { gte: monthStart }, status: 'ACCEPTED', deletedAt: null },
+        }),
+
+        // COGS YTD — sum of product cost for all issued stock this year
+        prisma.stockTransaction.aggregate({
+          where: {
+            transactionType: 'ISSUE',
+            createdAt: { gte: yearStart },
+            inventoryItem: { product: { companyId } },
+          },
+          _sum: { totalCost: true },
+        }),
+
+        // Current inventory value
+        prisma.inventoryItem.aggregate({
+          where: { deletedAt: null, isActive: true, product: { companyId } },
+          _sum: { totalCost: true },
+        }),
+
+        // Overdue AR
+        prisma.invoice.aggregate({
+          where: { companyId, dueDate: { lt: now }, status: { notIn: ['PAID', 'CANCELLED', 'WRITTEN_OFF'] }, deletedAt: null },
+          _sum: { balanceDue: true },
+          _count: { id: true },
+        }),
+
+        // Open backlog — confirmed orders not yet fully shipped
+        prisma.salesOrder.aggregate({
+          where: {
+            companyId,
+            deletedAt: null,
+            status: { in: ['CONFIRMED', 'IN_PRODUCTION', 'READY_TO_SHIP', 'PARTIALLY_SHIPPED'] },
+          },
+          _sum: { totalAmount: true },
+          _count: { id: true },
+        }),
+      ]);
+
+      // ── Compute machine utilisation ──────────────────────────────────
+      // Pair CHECK_IN / CHECK_OUT events per work center to get active hours.
+      // Compare against available hours (workdays this month * 8h per day).
+      const workdaysThisMonth = countWorkdays(monthStart, now);
+      const availableMinutesPerCenter = workdaysThisMonth * 8 * 60; // 8-hour shifts
+
+      const centerSessions: Record<string, { activeMinutes: number; jobCount: Set<string> }> = {};
+      const eventsByCenter: Record<string, Array<{ eventType: string; scannedAt: Date; workOrderId: string }>> = {};
+
+      for (const entry of timeEntriesThisMonth) {
+        const cid = entry.workCenterId!;
+        if (!eventsByCenter[cid]) eventsByCenter[cid] = [];
+        eventsByCenter[cid].push(entry);
+      }
+
+      for (const [cid, events] of Object.entries(eventsByCenter)) {
+        if (!centerSessions[cid]) centerSessions[cid] = { activeMinutes: 0, jobCount: new Set() };
+        let lastCheckIn: Date | null = null;
+        for (const ev of events) {
+          if (ev.eventType === 'CHECK_IN') {
+            lastCheckIn = new Date(ev.scannedAt);
+            centerSessions[cid].jobCount.add(ev.workOrderId);
+          } else if (ev.eventType === 'CHECK_OUT' && lastCheckIn) {
+            const mins = (new Date(ev.scannedAt).getTime() - lastCheckIn.getTime()) / 60000;
+            centerSessions[cid].activeMinutes += Math.min(mins, 480); // cap at 8h per session
+            centerSessions[cid].jobCount.add(ev.workOrderId);
+            lastCheckIn = null;
+          }
+        }
+      }
+
+      const machineUtilisation = workCenters.map((wc) => {
+        const session = centerSessions[wc.id];
+        const activeMinutes = session?.activeMinutes ?? 0;
+        const pct = availableMinutesPerCenter > 0 ? Math.round((activeMinutes / availableMinutesPerCenter) * 100) : 0;
+        return { id: wc.id, code: wc.code, name: wc.name, type: wc.type, utilisationPct: Math.min(pct, 100), activeMinutes: Math.round(activeMinutes), jobCount: session?.jobCount?.size ?? 0 };
+      });
+
+      const avgUtilisation = machineUtilisation.length > 0
+        ? Math.round(machineUtilisation.reduce((s, m) => s + m.utilisationPct, 0) / machineUtilisation.length)
+        : 0;
+
+      // ── Revenue metrics ──────────────────────────────────────────────
+      const revThisMonth = Number(revenueThisMonth._sum.totalAmount ?? 0);
+      const revPrevMonth = Number(revenuePrevMonth._sum.totalAmount ?? 0);
+      const revYTD = Number(revenueYTD._sum.totalAmount ?? 0);
+      const revenueGrowthPct = revPrevMonth > 0 ? Math.round(((revThisMonth - revPrevMonth) / revPrevMonth) * 100) : null;
+
+      // ── Sales metrics ────────────────────────────────────────────────
+      const salesThisMonth = salesCountThisMonth._count.id;
+      const salesPrevMonthCount = salesCountPrevMonth._count.id;
+      const salesGrowthPct = salesPrevMonthCount > 0 ? Math.round(((salesThisMonth - salesPrevMonthCount) / salesPrevMonthCount) * 100) : null;
+      const avgOrderValue = salesThisMonth > 0 ? Math.round(Number(salesCountThisMonth._sum.totalAmount ?? 0) / salesThisMonth) : 0;
+
+      // ── Dispatch ready value ─────────────────────────────────────────
+      const dispatchReadyValue = readyToShipOrders.reduce((sum, so) => sum + Number(so.totalAmount ?? 0), 0);
+      const dispatchReadyCount = readyToShipOrders.length;
+
+      // ── Gross margin ─────────────────────────────────────────────────
+      const totalRevenue = revThisMonth;
+      const totalCOGS = Math.abs(Number(cogsYTD._sum.totalCost ?? 0));
+      const invValue = Number(currentInventoryValue._sum.totalCost ?? 0);
+      // Simple margin: (revenue - cogs) / revenue — month-level
+      const grossMarginPct = totalRevenue > 0 ? Math.round(((totalRevenue - totalCOGS) / totalRevenue) * 100) : null;
+
+      // ── On-time delivery ─────────────────────────────────────────────
+      let onTimeCount = 0;
+      let deliveryTotal = 0;
+      for (const order of shippedOrdersThisMonth) {
+        if (!order.requiredDate) continue;
+        deliveryTotal++;
+        const lastCompleted = order.workOrders
+          .filter((wo) => wo.completedDate)
+          .sort((a, b) => new Date(b.completedDate!).getTime() - new Date(a.completedDate!).getTime())[0];
+        if (lastCompleted && new Date(lastCompleted.completedDate!) <= new Date(order.requiredDate)) {
+          onTimeCount++;
+        }
+      }
+      const onTimeDeliveryPct = deliveryTotal > 0 ? Math.round((onTimeCount / deliveryTotal) * 100) : null;
+
+      // ── Quote conversion ─────────────────────────────────────────────
+      const quoteConversionPct = quotesThisMonth > 0 ? Math.round((quotesWonThisMonth / quotesThisMonth) * 100) : null;
+
+      // ── Inventory turnover ───────────────────────────────────────────
+      const inventoryTurnover = invValue > 0 ? Math.round((totalCOGS / invValue) * 10) / 10 : null;
+
+      return {
+        revenue: {
+          thisMonth: revThisMonth,
+          prevMonth: revPrevMonth,
+          ytd: revYTD,
+          growthPct: revenueGrowthPct,
+          invoiceCount: invoicedThisMonth,
+        },
+        sales: {
+          countThisMonth: salesThisMonth,
+          countPrevMonth: salesPrevMonthCount,
+          growthPct: salesGrowthPct,
+          avgOrderValue,
+        },
+        dispatchReady: {
+          count: dispatchReadyCount,
+          value: dispatchReadyValue,
+          orders: readyToShipOrders.slice(0, 10).map((so) => ({
+            orderNumber: so.orderNumber,
+            customer: so.customer?.name,
+            value: Number(so.totalAmount ?? 0),
+          })),
+        },
+        machineUtilisation: {
+          avgPct: avgUtilisation,
+          centers: machineUtilisation,
+        },
+        grossMarginPct,
+        onTimeDeliveryPct,
+        quoteConversion: {
+          pct: quoteConversionPct,
+          total: quotesThisMonth,
+          won: quotesWonThisMonth,
+        },
+        inventoryTurnover,
+        backlog: {
+          count: openBacklogValue._count.id,
+          value: Number(openBacklogValue._sum.totalAmount ?? 0),
+        },
+        overdueAR: {
+          count: overdueAR._count.id,
+          balance: Number(overdueAR._sum.balanceDue ?? 0),
+        },
+      };
+    } catch (err) { return handleError(reply, err); }
+  });
 };
+
+/** Count weekdays (Mon-Fri) between two dates */
+function countWorkdays(start: Date, end: Date): number {
+  let count = 0;
+  const d = new Date(start);
+  while (d <= end) {
+    const dow = d.getDay();
+    if (dow !== 0 && dow !== 6) count++;
+    d.setDate(d.getDate() + 1);
+  }
+  return count;
+}

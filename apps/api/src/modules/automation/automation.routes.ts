@@ -4,7 +4,7 @@ import { prisma } from '../../config/database';
 import { authenticate } from '../../middleware/auth.middleware';
 import { handleError } from '../../utils/errors';
 import { parsePagination, paginatedResponse } from '../../utils/pagination';
-import { sendEmail, orderStatusTemplate, quoteFollowUpTemplate, quoteExpiryWarningTemplate } from '../../utils/email';
+import { sendEmail, orderStatusTemplate, quoteFollowUpTemplate, quoteExpiryWarningTemplate, invoiceFollowUpTemplate } from '../../utils/email';
 
 export const automationRoutes: FastifyPluginAsync = async (fastify) => {
 
@@ -119,6 +119,19 @@ export const automationRoutes: FastifyPluginAsync = async (fastify) => {
           daysOld,
         });
         subject = `[TEST] Follow-up: Quote QT-000001`;
+      } else if (trigger.startsWith('INVOICE_FOLLOWUP_')) {
+        const daysMatch = trigger.match(/(\d+)D$/);
+        const days = daysMatch ? Number(daysMatch[1]) : 7;
+        html = invoiceFollowUpTemplate({
+          invoiceNumber: 'INV-000001',
+          customerName: 'Test Customer',
+          dueDate: new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          daysOverdue: days,
+          totalAmount: 1250000,
+          balanceDue: 750000,
+          currencyCode: 'USD',
+        });
+        subject = `[TEST] Payment Reminder: Invoice INV-000001 (${days} days overdue)`;
       } else if (trigger === 'QUOTE_EXPIRY_WARNING') {
         html = quoteExpiryWarningTemplate({
           quoteNumber: 'QT-000001',

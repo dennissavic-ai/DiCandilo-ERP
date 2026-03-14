@@ -192,7 +192,7 @@ export function ReceiveStockPage() {
             <h3 className="font-semibold">Receipt Details</h3>
           </div>
           <div className="card-body">
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="form-group">
                 <label className="label">Receiving Location *</label>
                 <select className="select" {...register('locationId', { required: true })}>

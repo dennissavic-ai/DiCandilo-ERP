@@ -330,7 +330,7 @@ export function CashFlowPage() {
 
       {/* Summary stats */}
       {!isLoading && d && (
-        <div className="grid grid-cols-3 gap-4 mb-5">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-5">
           <div className="card card-body flex items-center gap-3">
             <Wallet size={18} className="text-blue-600" />
             <div>
