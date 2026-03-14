@@ -315,6 +315,8 @@ export const planningApi = {
     api.delete(`/planning/plans/${planId}/schedule-blocks/${blockId}`),
   autoSchedule: (workOrderIds: string[]) =>
     api.post('/ai/schedule', { workOrderIds }),
+  quickSchedule: () => api.post('/planning/quick-schedule'),
+  clearSchedule: () => api.post('/planning/clear-schedule'),
 };
 
 // Value Stream Map

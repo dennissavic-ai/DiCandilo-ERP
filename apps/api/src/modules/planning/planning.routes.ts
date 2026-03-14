@@ -291,6 +291,128 @@ const planning: FastifyPluginAsync = async (fastify) => {
     await (prisma as any).scheduleBlock.delete({ where: { id: blockId } });
     return { ok: true };
   });
+
+  // ── POST /planning/quick-schedule — distribute all unscheduled WO actions ──
+  fastify.post('/quick-schedule', async (request) => {
+    const user = (request as any).user;
+
+    // Get all active work orders with lines
+    const workOrders = await (prisma as any).workOrder.findMany({
+      where: {
+        companyId: user.companyId,
+        deletedAt: null,
+        status: { notIn: ['COMPLETED', 'CANCELLED'] },
+      },
+      include: {
+        lines: { include: { workCenter: true }, orderBy: { lineNumber: 'asc' } },
+        jobPlan: { include: { scheduleBlocks: true } },
+      },
+      orderBy: [{ priority: 'asc' }, { scheduledDate: 'asc' }],
+    });
+
+    // Get all active work centres
+    const workCenters = await (prisma as any).workCenter.findMany({
+      where: { companyId: user.companyId, isActive: true, deletedAt: null },
+      orderBy: { code: 'asc' },
+    });
+
+    if (workCenters.length === 0) {
+      return { scheduled: 0, message: 'No active work centres found' };
+    }
+
+    // Track the next available slot per work centre: { wcId: nextAvailableDate }
+    const now = new Date();
+    // Start scheduling from tomorrow at 7:00 AM
+    const scheduleStart = new Date(now);
+    scheduleStart.setDate(scheduleStart.getDate() + 1);
+    scheduleStart.setHours(7, 0, 0, 0);
+    // Skip to Monday if weekend
+    const dow = scheduleStart.getDay();
+    if (dow === 0) scheduleStart.setDate(scheduleStart.getDate() + 1); // Sunday -> Monday
+    if (dow === 6) scheduleStart.setDate(scheduleStart.getDate() + 2); // Saturday -> Monday
+
+    const wcSlots: Record<string, Date> = {};
+    for (const wc of workCenters) {
+      wcSlots[wc.id] = new Date(scheduleStart);
+    }
+
+    function advanceSlot(wcId: string, durationMinutes: number) {
+      const current = wcSlots[wcId];
+      const end = new Date(current.getTime() + durationMinutes * 60000);
+      // If past 17:00 (5 PM), move to next working day at 7:00
+      if (end.getHours() >= 17 || (end.getHours() === 17 && end.getMinutes() > 0)) {
+        const nextDay = new Date(current);
+        nextDay.setDate(nextDay.getDate() + 1);
+        nextDay.setHours(7, 0, 0, 0);
+        // Skip weekends
+        const d = nextDay.getDay();
+        if (d === 0) nextDay.setDate(nextDay.getDate() + 1);
+        if (d === 6) nextDay.setDate(nextDay.getDate() + 2);
+        wcSlots[wcId] = nextDay;
+      } else {
+        wcSlots[wcId] = end;
+      }
+    }
+
+    let scheduledCount = 0;
+
+    for (const wo of workOrders) {
+      // Skip WOs that already have schedule blocks
+      if (wo.jobPlan?.scheduleBlocks?.length > 0) continue;
+
+      // Ensure a plan exists
+      let plan = wo.jobPlan;
+      if (!plan) {
+        plan = await (prisma as any).jobPlan.create({
+          data: {
+            companyId: user.companyId,
+            workOrderId: wo.id,
+            status: 'DRAFT',
+            createdBy: user.userId,
+            updatedAt: new Date(),
+          },
+        });
+      }
+
+      for (const line of wo.lines) {
+        const durationMins = line.estimatedMinutes ?? 60;
+        // Use the line's assigned work centre, or round-robin across all
+        const wcId = line.workCenterId ?? workCenters[scheduledCount % workCenters.length].id;
+
+        // Initialize slot if this WC hasn't been seen
+        if (!wcSlots[wcId]) wcSlots[wcId] = new Date(scheduleStart);
+
+        const startAt = new Date(wcSlots[wcId]);
+        const endAt = new Date(startAt.getTime() + durationMins * 60000);
+
+        await (prisma as any).scheduleBlock.create({
+          data: {
+            companyId: user.companyId,
+            jobPlanId: plan.id,
+            workCenterId: wcId,
+            startAt,
+            endAt,
+            notes: `${line.operation} — ${wo.workOrderNumber}`,
+            updatedAt: new Date(),
+          },
+        });
+
+        advanceSlot(wcId, durationMins);
+        scheduledCount++;
+      }
+    }
+
+    return { scheduled: scheduledCount, message: `Scheduled ${scheduledCount} actions across ${workCenters.length} work centres` };
+  });
+
+  // ── POST /planning/clear-schedule — remove all schedule blocks ─────────────
+  fastify.post('/clear-schedule', async (request) => {
+    const user = (request as any).user;
+    const result = await (prisma as any).scheduleBlock.deleteMany({
+      where: { companyId: user.companyId },
+    });
+    return { deleted: result.count };
+  });
 };
 
 export default planning;

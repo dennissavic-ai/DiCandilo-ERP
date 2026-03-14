@@ -3,9 +3,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { planningApi } from '../../services/api';
 import {
   ClipboardList, ChevronRight, ChevronLeft, CheckCircle2, Clock, AlertCircle,
-  Calendar, Users, Wrench, Sparkles, Loader2, GripHorizontal, Plus, X, ZoomIn, ZoomOut,
+  Calendar, Users, Wrench, Loader2, GripHorizontal, Plus, X, Zap, Trash2,
 } from 'lucide-react';
-import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { format, addDays, startOfWeek, addWeeks, subWeeks, differenceInMinutes, differenceInDays, isSameDay, isWeekend } from 'date-fns';
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -23,10 +23,15 @@ const GANTT_COLORS = [
 type ViewMode = 'gantt' | 'list';
 type ZoomLevel = '1day' | '2day' | 'week';
 
+// Working hours: 7:00 AM to 5:00 PM = 10 hours
+const WORK_START_HOUR = 7;
+const WORK_END_HOUR = 17;
+const WORK_HOURS = WORK_END_HOUR - WORK_START_HOUR; // 10
+
 const ZOOM_CONFIG: Record<ZoomLevel, { dayWidth: number; label: string }> = {
-  '1day': { dayWidth: 200, label: '1 Day' },
-  '2day': { dayWidth: 100, label: '2 Days' },
-  'week': { dayWidth: 50, label: 'Week' },
+  '1day': { dayWidth: 400, label: '1 Day' },
+  '2day': { dayWidth: 200, label: '2 Days' },
+  'week': { dayWidth: 100, label: 'Week' },
 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -81,14 +86,12 @@ function UnscheduledPanel({
   workOrders: any[];
   onClickSchedule: (woId: string, wcId?: string) => void;
 }) {
-  // Collect all WO lines that don't have schedule blocks yet
   const unscheduledActions = useMemo(() => {
     const items: { woId: string; woNumber: string; customer: string; line: any; priority: number }[] = [];
     for (const wo of workOrders) {
       if (['COMPLETED', 'CANCELLED'].includes(wo.status)) continue;
-      const hasBlocks = wo.jobPlan?.scheduleBlocks?.length > 0;
-      // Show all lines from WOs that have no schedule blocks
-      // In the future this could be per-line tracking
+      // WO has no plan or plan has no schedule blocks → all lines are unscheduled
+      const hasBlocks = (wo.jobPlan?.scheduleBlocks?.length ?? 0) > 0;
       if (!hasBlocks) {
         for (const line of wo.lines ?? []) {
           items.push({
@@ -171,7 +174,6 @@ function AddBlockModal({
   const [duration, setDuration] = useState(60);
   const [notes, setNotes] = useState('');
 
-  // Fetch plan ID for selected work order
   const { data: planData } = useQuery({
     queryKey: ['plan-for-wo', workOrderId],
     queryFn: () => workOrderId ? planningApi.getPlan(workOrderId).then((r) => r.data) : null,
@@ -266,30 +268,32 @@ function GanttChart({
   const numDays = zoom === 'week' ? 14 : zoom === '2day' ? 7 : 5;
   const days = Array.from({ length: numDays }, (_, i) => addDays(weekStart, i));
   const headerH = 48;
-  const rowH = 56;
-  const labelW = 140;
+  const rowH = 64;
+  const labelW = 150;
 
   // Map WO number to color index
   const woNumbers = [...new Set(blocks.map((b) => b.jobPlan.workOrder.workOrderNumber))];
   const woColorMap = new Map(woNumbers.map((n, i) => [n, i]));
 
-  // Only show work centers that have blocks or are active
-  const activeWcIds = new Set(blocks.map((b) => b.workCenterId));
-  const visibleWCs = workCenters.filter((wc) => activeWcIds.has(wc.id) || true);
-
+  const visibleWCs = workCenters;
   const totalW = labelW + numDays * dayWidth;
   const totalH = headerH + visibleWCs.length * rowH;
 
+  // Calculate block position within a day column based on working hours (7am-5pm)
   function blockLeft(block: ScheduleBlock): number {
     const start = new Date(block.startAt);
     const dayIdx = differenceInDays(start, weekStart);
-    const dayFraction = (start.getHours() + start.getMinutes() / 60) / 24;
-    return labelW + dayIdx * dayWidth + dayFraction * dayWidth;
+    const hourOfDay = start.getHours() + start.getMinutes() / 60;
+    // Clamp to working hours
+    const workFraction = Math.max(0, Math.min(1, (hourOfDay - WORK_START_HOUR) / WORK_HOURS));
+    return labelW + dayIdx * dayWidth + workFraction * dayWidth;
   }
 
   function blockWidth(block: ScheduleBlock): number {
     const mins = differenceInMinutes(new Date(block.endAt), new Date(block.startAt));
-    return Math.max((mins / (24 * 60)) * dayWidth, 20);
+    // Width based on working hours, not 24 hours
+    const w = (mins / (WORK_HOURS * 60)) * dayWidth;
+    return Math.max(w, 28);
   }
 
   return (
@@ -317,7 +321,7 @@ function GanttChart({
         </div>
 
         {/* Work centre rows */}
-        {visibleWCs.map((wc, rowIdx) => {
+        {visibleWCs.map((wc) => {
           const rowBlocks = blocks.filter((b) => b.workCenterId === wc.id);
           return (
             <div key={wc.id} className="flex" style={{ height: rowH }}>
@@ -339,7 +343,7 @@ function GanttChart({
                 {days.map((day, di) => (
                   <div
                     key={di}
-                    className={`absolute top-0 bottom-0 border-r border-b border-border ${
+                    className={`absolute top-0 bottom-0 border-r border-b border-border cursor-pointer hover:bg-primary-50/20 ${
                       isWeekend(day) ? 'bg-steel-50/40' : ''
                     } ${isSameDay(day, new Date()) ? 'bg-primary-50/30' : ''}`}
                     style={{ left: di * dayWidth, width: dayWidth }}
@@ -368,6 +372,7 @@ function GanttChart({
                         width: Math.min(width, totalW - Math.max(left, labelW)),
                         height: rowH - 12,
                       }}
+                      title={`${wo.workOrderNumber} · ${wo.salesOrder?.customer?.name ?? 'Internal'}\n${block.notes ?? ''}\n${minutesToLabel(mins)}`}
                     >
                       <div
                         className="h-full rounded-md border shadow-sm flex items-center gap-1.5 px-2 overflow-hidden transition-shadow hover:shadow-md"
@@ -378,15 +383,12 @@ function GanttChart({
                           <div className="text-[11px] font-bold truncate" style={{ color }}>
                             {wo.workOrderNumber}
                           </div>
-                          {width > 80 && (
+                          {width > 60 && (
                             <div className="text-[9px] truncate text-steel-500">
-                              {wo.salesOrder?.customer?.name ?? 'Internal'} · {minutesToLabel(mins)}
+                              {block.notes ?? (wo.salesOrder?.customer?.name ?? 'Internal')} · {minutesToLabel(mins)}
                             </div>
                           )}
                         </div>
-                        {block.aiGenerated && (
-                          <span title="AI scheduled"><Sparkles size={10} className="shrink-0 text-purple-500" /></span>
-                        )}
                         {/* Delete button on hover */}
                         <button
                           onClick={(e) => { e.stopPropagation(); onDeleteBlock(block.jobPlanId, block.id); }}
@@ -494,8 +496,8 @@ export function PlanningPage() {
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
   const [showAddModal, setShowAddModal] = useState(false);
   const [addDefaults, setAddDefaults] = useState<{ wcId?: string; day?: Date; woId?: string }>({});
-  const [isAutoScheduling, setIsAutoScheduling] = useState(false);
-  const [autoScheduleMsg, setAutoScheduleMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [isQuickScheduling, setIsQuickScheduling] = useState(false);
+  const [scheduleMsg, setScheduleMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Fetch data
   const { data: workOrders = [], isLoading: woLoading } = useQuery({
@@ -510,7 +512,7 @@ export function PlanningPage() {
   const workCenters: WorkCenter[] = workCentersRaw as any;
 
   const numDays = zoom === 'week' ? 14 : zoom === '2day' ? 7 : 5;
-  const { data: scheduleBlocks = [], isLoading: blocksLoading } = useQuery({
+  const { data: scheduleBlocks = [] } = useQuery({
     queryKey: ['planning-schedule', weekStart.toISOString(), numDays],
     queryFn: () => planningApi.getSchedule({
       from: weekStart.toISOString(),
@@ -536,25 +538,42 @@ export function PlanningPage() {
     },
   });
 
-  // AI Auto-Schedule
-  async function handleAutoSchedule() {
-    setIsAutoScheduling(true);
-    setAutoScheduleMsg(null);
+  // Quick Schedule — distributes all unscheduled WO actions across work centres
+  async function handleQuickSchedule() {
+    setIsQuickScheduling(true);
+    setScheduleMsg(null);
     try {
-      const activeWOs = (workOrders as any[]).filter(
-        (wo) => !['COMPLETED', 'CANCELLED'].includes(wo.status)
-      );
-      const woIds = activeWOs.map((wo: any) => wo.id);
-      await planningApi.autoSchedule(woIds);
+      const res = await planningApi.quickSchedule();
+      const data = (res as any).data;
       qc.invalidateQueries({ queryKey: ['planning-schedule'] });
       qc.invalidateQueries({ queryKey: ['planning-work-orders'] });
-      setAutoScheduleMsg({ type: 'success', text: `Auto-scheduled ${woIds.length} work orders across ${workCenters.length} work centres.` });
-      setTimeout(() => setAutoScheduleMsg(null), 5000);
+      setScheduleMsg({ type: 'success', text: data.message ?? `Scheduled ${data.scheduled} actions` });
+      // Jump to next week to see the newly scheduled blocks
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      setWeekStart(startOfWeek(tomorrow, { weekStartsOn: 1 }));
+      setTimeout(() => setScheduleMsg(null), 5000);
     } catch (err: any) {
-      setAutoScheduleMsg({ type: 'error', text: err?.response?.data?.message ?? 'Auto-schedule failed.' });
-      setTimeout(() => setAutoScheduleMsg(null), 5000);
+      setScheduleMsg({ type: 'error', text: err?.response?.data?.message ?? 'Quick schedule failed.' });
+      setTimeout(() => setScheduleMsg(null), 5000);
     } finally {
-      setIsAutoScheduling(false);
+      setIsQuickScheduling(false);
+    }
+  }
+
+  // Clear Schedule
+  async function handleClearSchedule() {
+    setScheduleMsg(null);
+    try {
+      const res = await planningApi.clearSchedule();
+      const data = (res as any).data;
+      qc.invalidateQueries({ queryKey: ['planning-schedule'] });
+      qc.invalidateQueries({ queryKey: ['planning-work-orders'] });
+      setScheduleMsg({ type: 'success', text: `Cleared ${data.deleted} schedule blocks` });
+      setTimeout(() => setScheduleMsg(null), 5000);
+    } catch (err: any) {
+      setScheduleMsg({ type: 'error', text: 'Failed to clear schedule.' });
+      setTimeout(() => setScheduleMsg(null), 5000);
     }
   }
 
@@ -563,7 +582,7 @@ export function PlanningPage() {
     let count = 0;
     for (const wo of workOrders as any[]) {
       if (['COMPLETED', 'CANCELLED'].includes(wo.status)) continue;
-      if (!wo.jobPlan?.scheduleBlocks?.length) {
+      if (!(wo.jobPlan?.scheduleBlocks?.length > 0)) {
         count += (wo.lines?.length ?? 0);
       }
     }
@@ -644,28 +663,39 @@ export function PlanningPage() {
             </>
           )}
 
-          {/* AI Auto-Schedule */}
+          {/* Clear Schedule */}
+          {scheduledCount > 0 && (
+            <button
+              className="btn-secondary btn-sm text-red-500 hover:text-red-700"
+              onClick={handleClearSchedule}
+              title="Clear all schedule blocks"
+            >
+              <Trash2 size={13} /> Clear
+            </button>
+          )}
+
+          {/* Quick Schedule */}
           <button
             className="btn-primary btn-sm flex items-center gap-1.5"
-            onClick={handleAutoSchedule}
-            disabled={isAutoScheduling}
+            onClick={handleQuickSchedule}
+            disabled={isQuickScheduling || unscheduledCount === 0}
           >
-            {isAutoScheduling
+            {isQuickScheduling
               ? <><Loader2 size={13} className="animate-spin" />Scheduling…</>
-              : <><Sparkles size={13} />AI Auto-Schedule</>}
+              : <><Zap size={13} />Quick Schedule</>}
           </button>
         </div>
       </div>
 
-      {/* Auto-schedule message */}
-      {autoScheduleMsg && (
+      {/* Schedule message */}
+      {scheduleMsg && (
         <div className={`flex items-center gap-2 text-sm px-4 py-2.5 rounded-lg ${
-          autoScheduleMsg.type === 'success'
+          scheduleMsg.type === 'success'
             ? 'bg-green-50 text-green-700 border border-green-200'
             : 'bg-red-50 text-red-700 border border-red-200'
         }`}>
-          {autoScheduleMsg.type === 'success' ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}
-          {autoScheduleMsg.text}
+          {scheduleMsg.type === 'success' ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}
+          {scheduleMsg.text}
         </div>
       )}
 

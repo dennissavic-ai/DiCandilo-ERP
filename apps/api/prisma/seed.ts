@@ -180,6 +180,15 @@ async function main() {
     { email: 'sarah@dicandilo.com',     firstName: 'Sarah',    lastName: 'Williams',   role: 'Planner' },
     { email: 'marco@dicandilo.com',     firstName: 'Marco',    lastName: 'Di Candilo', role: 'Dispatch' },
     { email: 'dev@dicandilo.com',       firstName: 'Dev',      lastName: 'Support',    role: 'Developer' },
+    // Additional operators for the shop floor
+    { email: 'nick@dicandilo.com',      firstName: 'Nick',     lastName: 'Papadopoulos', role: 'Operator' },
+    { email: 'sam@dicandilo.com',       firstName: 'Sam',      lastName: 'Kelly',        role: 'Operator' },
+    { email: 'rob@dicandilo.com',       firstName: 'Rob',      lastName: 'Nguyen',       role: 'Operator' },
+    { email: 'pete@dicandilo.com',      firstName: 'Pete',     lastName: 'Morrison',     role: 'Operator' },
+    { email: 'dan@dicandilo.com',       firstName: 'Dan',      lastName: 'Kovac',        role: 'Operator' },
+    // Additional planners and dispatchers
+    { email: 'emily@dicandilo.com',     firstName: 'Emily',    lastName: 'Taylor',       role: 'Planner' },
+    { email: 'chris@dicandilo.com',     firstName: 'Chris',    lastName: 'De Luca',      role: 'Dispatch' },
   ];
 
   const demoPasswordHash = await argon2.hash('Demo@12345');
