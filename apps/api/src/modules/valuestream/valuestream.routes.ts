@@ -608,7 +608,7 @@ Describe what the future state VSM should look like — which steps to combine, 
 
     // Create all 5 maps with their nodes in a transaction
     const created = await (prisma as any).$transaction(async (tx: any) => {
-      const results = [];
+      const results: any[] = [];
       for (const ex of examples) {
         const map = await tx.valueStreamMap.create({
           data: {

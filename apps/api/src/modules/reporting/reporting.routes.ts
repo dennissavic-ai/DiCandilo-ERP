@@ -328,7 +328,7 @@ export const reportingRoutes: FastifyPluginAsync = async (fastify) => {
       });
 
       // For each product, sum current stock levels
-      const suggestions = [];
+      const suggestions: any[] = [];
       for (const product of products) {
         const totalOnHand = product.inventoryItems.reduce((s, i) => s + Number(i.qtyOnHand), 0);
         const totalAvailable = product.inventoryItems.reduce((s, i) => s + Number(i.qtyAvailable), 0);
